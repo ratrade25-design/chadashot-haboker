@@ -1,0 +1,7 @@
+flask>=3.0.0
+yfinance>=0.2.40
+requests>=2.31.0
+pillow>=10.0.0
+python-bidi>=0.4.2
+lxml>=5.0.0
+gunicorn>=21.2.0

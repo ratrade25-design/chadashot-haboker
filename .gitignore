@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.png
+*.html
+*.bat
+run_pre.bat
+run_mid.bat
+start_app.bat
+morning-news-*.png
+morning-report-*.html
+test_*.png
