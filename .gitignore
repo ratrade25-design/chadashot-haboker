@@ -4,8 +4,12 @@ __pycache__/
 *.pyd
 .env
 *.png
-*.html
 *.bat
+
+# Generated report HTML — but keep Flask templates/
+/morning-report-*.html
+morning-news-*.html
+test_*.html
 run_pre.bat
 run_mid.bat
 start_app.bat

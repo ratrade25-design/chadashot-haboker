@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#0f1117"/>
+<title>חדשות הבוקר</title>
+<link rel="manifest" href="/static/manifest.json"/>
+<link rel="apple-touch-icon" href="/static/icon-192.png"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f1117;--s1:#161b27;--s2:#1e2636;--bd:#2a3447;
+  --tx:#e2e8f0;--mt:#8899aa;--bl:#3b82f6;--gn:#22c55e;--rd:#ef4444;--yl:#f59e0b;
+  --hh:68px;--th:46px;--nh:62px;
+}
+html{height:100%;-webkit-text-size-adjust:100%}
+body{
+  height:100%;background:var(--bg);color:var(--tx);
+  font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.5;
+  display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* ── HEADER ── */
+header{
+  flex-shrink:0;height:var(--hh);
+  background:linear-gradient(135deg,#0d1020,#162040);
+  border-bottom:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;gap:12px;
+  padding-top:env(safe-area-inset-top,0px);
+}
+.hd-l{display:flex;align-items:center;gap:10px}
+.hd-ico{
+  width:38px;height:38px;background:var(--bl);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+}
+.hd-title{font-size:17px;font-weight:700;color:#fff}
+.hd-sub{font-size:11px;color:var(--mt);margin-top:1px}
+.hd-r{text-align:left;flex-shrink:0}
+.hd-sp{font-size:16px;font-weight:700;color:#fff}
+.hd-chg{font-size:12px;margin-top:1px}
+
+/* ── REFRESH BTN ── */
+.refresh-btn{
+  background:none;border:1px solid var(--bd);border-radius:8px;
+  color:var(--mt);font-size:13px;padding:5px 10px;cursor:pointer;
+  display:flex;align-items:center;gap:5px;
+  transition:color .15s;
+}
+.refresh-btn:active{color:var(--bl)}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── TICKER ── */
+.ticker{
+  flex-shrink:0;height:var(--th);
+  display:flex;align-items:center;gap:6px;
+  overflow-x:auto;padding:0 12px;
+  background:var(--s1);border-bottom:1px solid var(--bd);
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.ticker::-webkit-scrollbar{display:none}
+.tick{
+  flex-shrink:0;display:flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:6px;border:1px solid var(--bd);
+  background:var(--s2);font-size:12px;white-space:nowrap;
+}
+.tl{color:var(--mt)}.tv{font-weight:600;color:#fff}
+
+/* ── DESK NAV (desktop) ── */
+.desk-nav{
+  flex-shrink:0;display:flex;overflow-x:auto;
+  background:var(--s1);border-bottom:2px solid var(--bd);
+  padding:0 8px;scrollbar-width:none;
+}
+.desk-nav::-webkit-scrollbar{display:none}
+.desk-nav button{
+  display:flex;align-items:center;gap:5px;
+  padding:0 16px;height:40px;border:none;
+  border-bottom:2px solid transparent;background:transparent;
+  color:var(--mt);font-size:12.5px;font-weight:500;cursor:pointer;
+  white-space:nowrap;margin-bottom:-2px;transition:color .15s,border-color .15s;
+  touch-action:manipulation;-webkit-user-select:none;user-select:none;
+}
+.desk-nav button.act{color:var(--bl);border-bottom-color:var(--bl)}
+
+/* ── PANELS ── */
+.panels{
+  flex:1;display:flex;overflow:hidden;
+  overflow-x:scroll;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+.panels::-webkit-scrollbar{display:none}
+.panel{
+  flex:0 0 100%;scroll-snap-align:start;
+  overflow-y:auto;overflow-x:hidden;
+  padding:14px 14px calc(var(--nh) + 16px + env(safe-area-inset-bottom,0px));
+  -webkit-overflow-scrolling:touch;
+}
+
+/* ── BOTTOM NAV ── */
+.bot-nav{
+  flex-shrink:0;position:fixed;bottom:0;left:0;right:0;
+  height:var(--nh);display:flex;
+  background:var(--s1);border-top:1px solid var(--bd);z-index:200;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.bot-nav button{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:transparent;border:none;color:var(--mt);
+  font-size:9px;font-weight:500;cursor:pointer;
+  touch-action:manipulation;transition:color .12s;
+  -webkit-tap-highlight-color:transparent;
+}
+.bot-nav button .ico{font-size:19px;line-height:1}
+.bot-nav button.act{color:var(--bl)}
+
+/* ── CARDS ── */
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:12px}
+.card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.card-t{font-size:13px;font-weight:600;color:#fff}
+.card-s{font-size:10px;color:var(--mt)}
+
+/* ── GRID ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.g2{grid-template-columns:1fr}}
+
+/* ── TABLE ── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  text-align:right;padding:7px 8px;
+  background:var(--s2);color:var(--mt);font-weight:500;
+  border-bottom:1px solid var(--bd);font-size:11px;
+}
+td{padding:9px 8px;border-bottom:1px solid var(--bd);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:active td{background:var(--s2)}
+.alt td{background:rgba(30,38,54,.5)}
+.num{text-align:left;font-variant-numeric:tabular-nums;font-weight:600}
+.lbl{font-weight:500}
+
+/* ── STAT GRID ── */
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:8px}
+.sb{background:var(--s2);border:1px solid var(--bd);border-radius:9px;padding:11px 12px;text-align:center}
+.sl{font-size:10px;color:var(--mt);margin-bottom:3px}
+.sv{font-size:17px;font-weight:700;color:#fff;line-height:1.2}
+.sc{font-size:11px;margin-top:3px}
+
+/* ── CRYPTO CARD ── */
+.crypto-hero{
+  border-radius:11px;padding:14px 16px;margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.ch-left .sym{font-size:18px;font-weight:700}
+.ch-left .nm{font-size:11px;color:var(--mt);margin-top:2px}
+.ch-right{text-align:left}
+.ch-right .price{font-size:26px;font-weight:700;color:#fff;line-height:1.1}
+.ch-right .chg{font-size:15px;font-weight:600;margin-top:4px}
+
+/* ── F&G BAR ── */
+.fng-card{border-radius:10px;padding:14px;margin-bottom:12px;background:var(--s1);border:1px solid var(--bd)}
+.fng-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.fng-score{font-size:48px;font-weight:700;line-height:1;text-align:left}
+.fng-bar{height:10px;border-radius:5px;background:linear-gradient(to left,#22c55e,#f59e0b,#ef4444);position:relative;margin-top:8px}
+.fng-dot{
+  width:16px;height:16px;background:#fff;border:2px solid var(--bg);
+  border-radius:50%;position:absolute;top:-3px;transform:translateX(50%);
+  transition:right .4s ease;
+}
+
+/* ── EARNINGS ── */
+.earn-row{
+  padding:12px 0;border-bottom:1px solid var(--bd);
+  display:grid;grid-template-columns:auto 1fr auto;
+  gap:10px;align-items:start;
+}
+.earn-row:last-child{border-bottom:none}
+.earn-badge{
+  padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;
+  white-space:nowrap;margin-top:1px;
+}
+.pre-badge{background:rgba(59,130,246,.2);color:var(--bl)}
+.aft-badge{background:rgba(245,158,11,.2);color:var(--yl)}
+.earn-ticker{font-size:16px;font-weight:700;color:#fff}
+.earn-name{font-size:11px;color:var(--mt);margin-top:1px}
+.earn-data{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.earn-item{font-size:12px;color:var(--mt)}
+.earn-item span{color:var(--tx);font-weight:600}
+.beat-b{
+  display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;margin-right:3px;
+}
+.beat-y{background:rgba(34,197,94,.2);color:var(--gn)}
+.beat-n{background:rgba(239,68,68,.2);color:var(--rd)}
+.earn-react{
+  text-align:left;font-size:22px;font-weight:700;min-width:80px;
+}
+.earn-react-lbl{font-size:10px;color:var(--mt);text-align:left;margin-top:2px}
+
+/* ── UTILS ── */
+.pos{color:#22c55e}.neg{color:#ef4444}.nt{color:var(--mt)}
+.tag{
+  display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;
+  background:var(--s2);border:1px solid var(--bd);color:var(--mt);
+}
+
+/* ── LOADING ── */
+.loading-bar{
+  position:fixed;top:0;left:0;right:0;height:3px;z-index:999;
+  background:linear-gradient(90deg,var(--bl),#60a5fa,var(--bl));
+  background-size:200%;animation:shimmer 1.2s linear infinite;
+}
+@keyframes shimmer{to{background-position:200% 0}}
+.loading-bar.hidden{display:none}
+
+/* ── SKELETON ── */
+.skel{
+  background:linear-gradient(90deg,var(--s2) 25%,var(--bd) 50%,var(--s2) 75%);
+  background-size:200%;animation:shimmer 1.2s linear infinite;
+  border-radius:4px;height:14px;
+}
+
+/* ── PULL TO REFRESH ── */
+.ptr{
+  position:fixed;top:calc(var(--hh) + var(--th));left:50%;transform:translateX(-50%);
+  background:var(--bl);color:#fff;padding:6px 16px;border-radius:20px;
+  font-size:12px;font-weight:600;z-index:300;
+  opacity:0;transition:opacity .2s;pointer-events:none;
+}
+.ptr.show{opacity:1}
+
+/* ── DESKTOP ── */
+@media(min-width:769px){
+  html,body{overflow:auto;height:auto}
+  .panels{overflow-x:hidden;flex-direction:column;scroll-snap-type:none;flex:none}
+  .panel{flex:none;width:100%;padding:20px 24px 28px;display:none;min-height:0}
+  .panel.active{display:block}
+  .bot-nav{display:none}
+  .desk-nav{display:flex}
+  body{display:block}
+}
+@media(max-width:768px){.desk-nav{display:none}}
+
+/* ── UPDATE TOAST ── */
+.toast{
+  position:fixed;bottom:calc(var(--nh) + 8px + env(safe-area-inset-bottom,0px));
+  left:50%;transform:translateX(-50%);
+  background:var(--bl);color:#fff;padding:8px 18px;border-radius:20px;
+  font-size:12px;font-weight:600;z-index:300;
+  opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;
+}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- Loading bar -->
+<div class="loading-bar hidden" id="loadingBar"></div>
+
+<!-- Pull-to-refresh hint -->
+<div class="ptr" id="ptr">↓ מרענן...</div>
+
+<!-- HEADER -->
+<header>
+  <div class="hd-l">
+    <div class="hd-ico">📰</div>
+    <div>
+      <div class="hd-title">חדשות הבוקר</div>
+      <div class="hd-sub" id="hd-date">טוען נתונים...</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="refresh-btn" id="refreshBtn" onclick="refresh()">
+      <span id="refreshIcon">↻</span> רענן
+    </button>
+    <div class="hd-r">
+      <div class="hd-sp" id="hd-sp">—</div>
+      <div class="hd-chg" id="hd-chg"></div>
+    </div>
+  </div>
+</header>
+
+<!-- TICKER -->
+<div class="ticker" id="ticker">
+  <div class="tick"><span class="tl">S&P</span><span class="tv">—</span></div>
+  <div class="tick"><span class="tl">טוען...</span></div>
+</div>
+
+<!-- DESKTOP NAV -->
+<nav class="desk-nav" id="deskNav">
+  <button class="act" data-i="0">📈 תמונת מצב</button>
+  <button data-i="1">🔥 מניות חמות</button>
+  <button data-i="2">💹 מניות</button>
+  <button data-i="3">₿ קריפטו</button>
+  <button data-i="4">🌍 מטבעות</button>
+  <button data-i="5">📋 דיווחים</button>
+  <button data-i="6">🛢️ סחורות</button>
+</nav>
+
+<!-- PANELS -->
+<div class="panels" id="panels">
+
+  <!-- 0 — תמונת מצב -->
+  <section class="panel active" id="p0">
+
+    <div class="g2">
+      <div class="card" id="idx-card">
+        <div class="card-h"><div class="card-t">📊 מדדים</div><span class="card-s" id="idx-time"></span></div>
+        <table><thead><tr><th>מדד</th><th class="num">מחיר</th><th class="num">שינוי</th></tr></thead>
+        <tbody id="idx-body"><tr><td colspan="3"><div class="skel" style="width:100%;height:200px"></div></td></tr></tbody>
+        </table>
+      </div>
+      <div>
+        <div class="fng-card" id="fng-card">
+          <div class="fng-top">
+            <div>
+              <div class="card-t">CNN Fear &amp; Greed</div>
+              <div id="fng-label" style="font-size:13px;color:var(--mt);margin-top:3px">טוען...</div>
+              <div id="fng-prev" style="font-size:11px;color:var(--mt);margin-top:2px"></div>
+            </div>
+            <div class="fng-score" id="fng-score">—</div>
+          </div>
+          <div class="fng-bar"><div class="fng-dot" id="fng-dot" style="right:50%"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><div class="card-t">📌 מהיר</div></div>
+          <div class="sg" id="quick-stats"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Mini crypto on overview -->
+    <div class="card" id="ov-crypto">
+      <div class="card-h"><div class="card-t">₿ קריפטו — מהיר</div><span class="card-s" id="ov-crypto-time"></span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="ov-crypto-grid"></div>
+    </div>
+  </section>
+
+  <!-- 1 — מניות חמות (ווליום גבוה) -->
+  <section class="panel" id="p1">
+    <div class="card">
+      <div class="card-h">
+        <div class="card-t">🔥 מניות חמות — ווליום גבוה מהממוצע</div>
+        <span class="tag" id="trend-status">טוען...</span>
+      </div>
+      <div id="trend-body">
+        <div class="skel" style="width:100%;height:300px;border-radius:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 — מניות -->
+  <section class="panel" id="p2">
+    <div class="card">
+      <div class="card-h"><div class="card-t">💎 Magnificent 7 + AVGO</div><span class="card-s" id="stk-time"></span></div>
+      <table><thead><tr><th>מניה</th><th class="num">מחיר</th><th class="num">שינוי</th></tr></thead>
+      <tbody id="stk-body"></tbody></table>
+    </div>
+  </section>
+
+  <!-- 3 — קריפטו -->
+  <section class="panel" id="p3">
+    <div id="crypto-heroes"></div>
+    <div class="card">
+      <div class="card-h"><div class="card-t">📊 טבלת קריפטו</div><span class="card-s" id="crp-time"></span></div>
+      <table><thead><tr><th>מטבע</th><th class="num">מחיר</th><th class="num">שינוי</th></tr></thead>
+      <tbody id="crp-body"></tbody></table>
+    </div>
+  </section>
+
+  <!-- 4 — מטבעות/אג"ח -->
+  <section class="panel" id="p4">
+    <div class="card">
+      <div class="card-h"><div class="card-t">💱 מטבעות עולמיים</div><span class="card-s" id="fx-time"></span></div>
+      <table><thead><tr><th>זוג</th><th class="num">שערוך</th><th class="num">שינוי</th></tr></thead>
+      <tbody id="fx-body"></tbody></table>
+    </div>
+    <div class="card">
+      <div class="card-h"><div class="card-t">📈 אג"ח ארה"ב</div></div>
+      <table><thead><tr><th>אג"ח</th><th class="num">תשואה</th><th class="num">שינוי</th></tr></thead>
+      <tbody id="bond-body"></tbody></table>
+    </div>
+  </section>
+
+  <!-- 5 — Earnings -->
+  <section class="panel" id="p5">
+    <div class="card">
+      <div class="card-h">
+        <div class="card-t">📋 דיווחי תוצאות</div>
+        <span class="tag" id="earn-status">טוען...</span>
+      </div>
+      <div id="earn-body">
+        <div class="skel" style="width:100%;height:300px;border-radius:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 — סחורות -->
+  <section class="panel" id="p6">
+    <div class="card">
+      <div class="card-h"><div class="card-t">🛢️ שוק הסחורות</div><span class="card-s" id="com-time"></span></div>
+      <table><thead><tr><th>סחורה</th><th class="num">מחיר</th><th class="num">שינוי</th></tr></thead>
+      <tbody id="com-body"></tbody></table>
+    </div>
+  </section>
+
+</div><!-- /panels -->
+
+<!-- BOTTOM NAV -->
+<nav class="bot-nav" id="botNav">
+  <button class="act" data-i="0"><span class="ico">📈</span>מצב</button>
+  <button data-i="1"><span class="ico">🔥</span>חמות</button>
+  <button data-i="2"><span class="ico">💹</span>מניות</button>
+  <button data-i="3"><span class="ico">₿</span>קריפטו</button>
+  <button data-i="4"><span class="ico">📋</span>דיווחים</button>
+  <button data-i="5"><span class="ico">🛢️</span>סחורות</button>
+</nav>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  STATE & NAV
+// ══════════════════════════════════════════════
+let curPanel = 0;
+const panels  = document.querySelectorAll('.panel');
+const botBtns = document.querySelectorAll('.bot-nav button');
+const deskBtns= document.querySelectorAll('.desk-nav button');
+const panelsEl= document.getElementById('panels');
+const isMobile= () => window.innerWidth <= 768;
+
+function goTo(i) {
+  curPanel = i;
+  botBtns.forEach((b,j)  => b.classList.toggle('act', j===i));
+  deskBtns.forEach((b,j) => b.classList.toggle('act', j===i));
+  if (isMobile()) {
+    panels[i].scrollIntoView({behavior:'smooth',inline:'start',block:'nearest'});
+  } else {
+    panels.forEach((p,j) => p.classList.toggle('active', j===i));
+  }
+}
+
+botBtns.forEach(b  => b.addEventListener('click', () => goTo(+b.dataset.i)));
+deskBtns.forEach(b => b.addEventListener('click', () => goTo(+b.dataset.i)));
+
+// Track swipe on mobile
+let scrollTimer;
+panelsEl.addEventListener('scroll', () => {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => {
+    const i = Math.round(panelsEl.scrollLeft / panelsEl.offsetWidth);
+    botBtns.forEach((b,j) => b.classList.toggle('act', j===i));
+    curPanel = i;
+  }, 80);
+}, {passive:true});
+
+// ══════════════════════════════════════════════
+//  FORMATTING
+// ══════════════════════════════════════════════
+const FMT = {
+  val(v, dec=2, pfx='$') {
+    if (v == null) return '—';
+    if (dec === 0) return pfx + Number(v).toLocaleString('en-US', {maximumFractionDigits:0});
+    return pfx + Number(v).toLocaleString('en-US', {minimumFractionDigits:dec, maximumFractionDigits:dec});
+  },
+  chg(v) {
+    if (v == null) return '<span class="nt">—</span>';
+    const cls = v>=0 ? 'pos' : 'neg';
+    const sym = v>=0 ? '▲' : '▼';
+    return `<span class="${cls}">${sym} ${Math.abs(v).toFixed(2)}%</span>`;
+  },
+  chgTxt(v) {
+    if (v == null) return '—';
+    const sym = v>=0 ? '▲' : '▼';
+    return `${sym} ${Math.abs(v).toFixed(2)}%`;
+  },
+  rev(v) {
+    if (!v) return '—';
+    if (v >= 1e9) return '$' + (v/1e9).toFixed(2) + 'B';
+    return '$' + Math.round(v/1e6) + 'M';
+  },
+};
+
+// ══════════════════════════════════════════════
+//  RENDER FUNCTIONS
+// ══════════════════════════════════════════════
+function renderMarket(data) {
+  const m  = data.market;
+  const fg = data.fear_greed;
+  const ts = data.last_update ? `עודכן ${data.last_update}` : '';
+
+  // Header
+  document.getElementById('hd-date').textContent = data.date || '';
+  document.getElementById('hd-sp').textContent = FMT.val(m.sp500?.val, 2, '');
+  document.getElementById('hd-chg').innerHTML  = FMT.chg(m.sp500?.chg);
+
+  // Ticker
+  const tickers = [
+    ['S&P',    m.sp500?.val,  m.sp500?.chg,  2, ''],
+    ['Nasdaq', m.nasdaq?.val, m.nasdaq?.chg, 2, ''],
+    ['Dow',    m.dji?.val,    m.dji?.chg,    2, ''],
+    ['VIX',    m.vix?.val,    m.vix?.chg,    1, ''],
+    ['₿ BTC',  m.btc?.val,    m.btc?.chg,    0, '$'],
+    ['⟠ ETH',  m.eth?.val,    m.eth?.chg,    0, '$'],
+    ['WTI',    m.wti?.val,    m.wti?.chg,    2, '$'],
+    ['זהב',   m.gold?.val,   m.gold?.chg,   0, '$'],
+    ['DXY',    m.dxy?.val,    m.dxy?.chg,    2, ''],
+    ['USD/ILS',m.usdils?.val, m.usdils?.chg, 3, ''],
+  ];
+  document.getElementById('ticker').innerHTML = tickers.map(([l,v,c,d,p]) =>
+    `<div class="tick"><span class="tl">${l}</span><span class="tv">${FMT.val(v,d,p)}</span>${FMT.chg(c)}</div>`
+  ).join('');
+
+  // Indices
+  document.getElementById('idx-time').textContent = ts;
+  const idxRows = [
+    ['S&P 500',      m.sp500,   2,''],
+    ['Nasdaq',       m.nasdaq,  2,''],
+    ['Dow Jones',    m.dji,     2,''],
+    ['Russell 2000', m.russell, 2,''],
+    ['VIX',          m.vix,     1,''],
+    ['QQQ',          m.qqq,     2,'$'],
+    ['SPY',          m.spy,     2,'$'],
+  ];
+  document.getElementById('idx-body').innerHTML = idxRows.map(([l,d,dec,p],i) =>
+    `<tr class="${i%2?'alt':''}"><td class="lbl">${l}</td>
+     <td class="num">${FMT.val(d?.val,dec,p)}</td>
+     <td class="num">${FMT.chg(d?.chg)}</td></tr>`
+  ).join('');
+
+  // F&G
+  const fgScore = fg.score;
+  const fgColors = fgScore < 25 ? '#ef4444' : fgScore < 45 ? '#f59e0b' : fgScore < 75 ? '#22c55e' : '#ef4444';
+  const fgLabels = {'Extreme Fear':'פחד קיצוני','Fear':'פחד','Neutral':'ניטרלי','Greed':'חמדנות','Extreme Greed':'חמדנות קיצונית'};
+  document.getElementById('fng-score').textContent  = fgScore ?? '—';
+  document.getElementById('fng-score').style.color  = fgColors;
+  document.getElementById('fng-label').textContent  = fgLabels[fg.rating] || fg.rating || '—';
+  document.getElementById('fng-label').style.color  = fgColors;
+  document.getElementById('fng-prev').textContent   = fg.prev ? `אתמול: ${fg.prev}` : '';
+  if (fgScore != null) {
+    document.getElementById('fng-dot').style.right = (100 - fgScore) + '%';
+    document.getElementById('fng-dot').style.background = fgColors;
+  }
+
+  // Quick stats
+  const qs = [
+    ['DXY',     FMT.val(m.dxy?.val,2,''),    m.dxy?.chg],
+    ['EUR/USD', FMT.val(m.eurusd?.val,4,''), m.eurusd?.chg],
+    ['USD/ILS', FMT.val(m.usdils?.val,3,''), m.usdils?.chg],
+    ['10Y',     FMT.val(m.tnx?.val,3,'')+'%',m.tnx?.chg],
+    ['30Y',     FMT.val(m.tyx?.val,3,'')+'%',m.tyx?.chg],
+    ['WTI',     FMT.val(m.wti?.val,2,'$'),   m.wti?.chg],
+  ];
+  document.getElementById('quick-stats').innerHTML = qs.map(([l,v,c]) =>
+    `<div class="sb"><div class="sl">${l}</div><div class="sv">${v}</div><div class="sc">${FMT.chg(c)}</div></div>`
+  ).join('');
+
+  // Overview crypto grid
+  document.getElementById('ov-crypto-time').textContent = ts;
+  const ocr = [
+    ['₿ BTC', m.btc, 0, '$', '#f7931a'],
+    ['⟠ ETH', m.eth, 0, '$', '#627eea'],
+    ['◎ SOL', m.sol, 1, '$', '#9945ff'],
+    ['⬡ BNB', m.bnb, 1, '$', '#f3ba2f'],
+  ];
+  document.getElementById('ov-crypto-grid').innerHTML = ocr.map(([l,d,dec,p,col]) =>
+    `<div class="sb" style="border-color:${col}33">
+      <div class="sl" style="color:${col}">${l}</div>
+      <div class="sv">${FMT.val(d?.val,dec,p)}</div>
+      <div class="sc">${FMT.chg(d?.chg)}</div>
+    </div>`
+  ).join('');
+
+  // Stocks (panel 1)
+  document.getElementById('stk-time').textContent = ts;
+  const stks = [
+    ['NVIDIA (NVDA)',   m.nvda,  '$'],
+    ['Broadcom (AVGO)', m.avgo,  '$'],
+    ['Microsoft (MSFT)',m.msft,  '$'],
+    ['Apple (AAPL)',    m.aapl,  '$'],
+    ['Meta (META)',     m.meta,  '$'],
+    ['Alphabet (GOOGL)',m.googl, '$'],
+    ['Amazon (AMZN)',   m.amzn,  '$'],
+    ['Tesla (TSLA)',    m.tsla,  '$'],
+  ];
+  document.getElementById('stk-body').innerHTML = stks.map(([l,d,p],i) =>
+    `<tr class="${i%2?'alt':''}"><td class="lbl">${l}</td>
+     <td class="num">${FMT.val(d?.val,2,p)}</td>
+     <td class="num">${FMT.chg(d?.chg)}</td></tr>`
+  ).join('');
+
+  // Crypto (panel 2)
+  document.getElementById('crp-time').textContent = ts;
+  const cryptos = [
+    ['₿ Bitcoin (BTC)', m.btc, 0, '$', '#f7921a'],
+    ['⟠ Ethereum (ETH)',m.eth, 0, '$', '#627eea'],
+    ['◎ Solana (SOL)',   m.sol, 1, '$', '#9945ff'],
+    ['⬡ BNB',           m.bnb, 1, '$', '#f3ba2f'],
+  ];
+  // Hero cards
+  document.getElementById('crypto-heroes').innerHTML = cryptos.slice(0,2).map(([l,d,,p,col]) => {
+    const chg = d?.chg; const cc = chg>=0 ? '#22c55e' : '#ef4444';
+    return `<div class="crypto-hero" style="background:var(--s1);border:1px solid ${col}33;margin-bottom:10px">
+      <div class="ch-left"><div class="sym" style="color:${col}">${l}</div></div>
+      <div class="ch-right">
+        <div class="price">${FMT.val(d?.val,0,p)}</div>
+        <div class="chg" style="color:${cc}">${FMT.chgTxt(chg)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('crp-body').innerHTML = cryptos.map(([l,d,dec,p,col],i) =>
+    `<tr class="${i%2?'alt':''}"><td class="lbl" style="color:${col}">${l}</td>
+     <td class="num">${FMT.val(d?.val,dec,p)}</td>
+     <td class="num">${FMT.chg(d?.chg)}</td></tr>`
+  ).join('');
+
+  // FX + Bonds (panel 3)
+  document.getElementById('fx-time').textContent = ts;
+  const fxPairs = [
+    ['DXY (אינדקס $)', m.dxy,    2,''],
+    ['EUR / USD',      m.eurusd, 4,''],
+    ['USD / JPY',      m.usdjpy, 2,''],
+    ['USD / ILS (₪)',  m.usdils, 3,''],
+  ];
+  document.getElementById('fx-body').innerHTML = fxPairs.map(([l,d,dec,p],i) =>
+    `<tr class="${i%2?'alt':''}"><td class="lbl">${l}</td>
+     <td class="num">${FMT.val(d?.val,dec,p)}</td>
+     <td class="num">${FMT.chg(d?.chg)}</td></tr>`
+  ).join('');
+  document.getElementById('bond-body').innerHTML = [
+    ['US 10Y Yield', m.tnx, 3, ''],
+    ['US 30Y Yield', m.tyx, 3, ''],
+  ].map(([l,d,dec,p],i) =>
+    `<tr class="${i%2?'alt':''}"><td class="lbl">${l}</td>
+     <td class="num">${FMT.val(d?.val,dec,p)}%</td>
+     <td class="num">${FMT.chg(d?.chg)}</td></tr>`
+  ).join('');
+
+  // Commodities (panel 5)
+  document.getElementById('com-time').textContent = ts;
+  const comms = [
+    ['WTI Crude Oil',  m.wti,    2,'$'],
+    ['Brent Crude',    m.brent,  2,'$'],
+    ['Gold',           m.gold,   0,'$'],
+    ['Silver',         m.silver, 2,'$'],
+    ['Copper',         m.copper, 3,'$'],
+  ];
+  document.getElementById('com-body').innerHTML = comms.map(([l,d,dec,p],i) =>
+    `<tr class="${i%2?'alt':''}"><td class="lbl">${l}</td>
+     <td class="num">${FMT.val(d?.val,dec,p)}</td>
+     <td class="num">${FMT.chg(d?.chg)}</td></tr>`
+  ).join('');
+}
+
+function renderEarnings(data) {
+  const earns   = data.earnings || [];
+  const loading = data.loading;
+  const last    = data.last_update;
+
+  document.getElementById('earn-status').textContent =
+    loading ? '⏳ טוען...' : last ? `עודכן ${last}` : 'לא עודכן';
+
+  if (!earns.length && !loading) {
+    document.getElementById('earn-body').innerHTML =
+      `<div style="text-align:center;color:var(--mt);padding:32px;font-size:14px">
+        לא נמצאו דיווחי תוצאות לתאריך זה
+      </div>`;
+    return;
+  }
+
+  const pre  = earns.filter(e => e.timing === 'PRE');
+  const post = earns.filter(e => e.timing === 'AFTER');
+
+  function beatBadge(beat) {
+    if (beat === null || beat === undefined) return '';
+    return `<span class="beat-b ${beat?'beat-y':'beat-n'}">${beat?'BEAT':'MISS'}</span>`;
+  }
+
+  function earnCard(e) {
+    const rc = e.stock_reaction;
+    const rcol = rc == null ? 'var(--mt)' : rc >= 0 ? '#22c55e' : '#ef4444';
+    const rsym = rc == null ? '' : rc >= 0 ? '▲' : '▼';
+    const rtxt = rc != null ? `${rsym} ${Math.abs(rc).toFixed(2)}%` : '—';
+
+    const badge = e.timing === 'PRE'
+      ? '<span class="earn-badge pre-badge">PRE</span>'
+      : '<span class="earn-badge aft-badge">AFTER</span>';
+
+    const epsRow = e.reported
+      ? `${e.eps_actual != null ? '<span>$' + e.eps_actual.toFixed(2) + '</span>' : '—'}
+         ${e.eps_est ? ` vs est $${e.eps_est.toFixed(2)}` : ''}
+         ${beatBadge(e.beat_eps)}`
+      : `<span style="color:var(--mt)">est ${e.eps_est ? '$'+e.eps_est.toFixed(2) : '?'}</span>`;
+
+    const revRow = e.rev_actual != null
+      ? `${FMT.rev(e.rev_actual)} vs est ${FMT.rev(e.rev_est)} ${beatBadge(e.beat_rev)}`
+      : e.rev_est ? `<span style="color:var(--mt)">est ${FMT.rev(e.rev_est)}</span>` : '';
+
+    const surp = e.surprise != null
+      ? `<span style="color:${e.surprise>=0?'#22c55e':'#ef4444'};font-weight:600">${e.surprise>=0?'+':''}${e.surprise.toFixed(1)}%</span>`
+      : '';
+
+    return `<div class="earn-row">
+      <div>
+        ${badge}
+        <div class="earn-ticker" style="margin-top:4px">${e.ticker}</div>
+        <div class="earn-name">${e.name}</div>
+      </div>
+      <div>
+        <div class="earn-data">
+          <div class="earn-item">EPS: ${epsRow}</div>
+          ${revRow ? `<div class="earn-item">Rev: ${revRow}</div>` : ''}
+          ${surp ? `<div class="earn-item">Surp: ${surp}</div>` : ''}
+        </div>
+      </div>
+      <div style="text-align:left">
+        <div class="earn-react" style="color:${rcol}">${rtxt}</div>
+        <div class="earn-react-lbl">${e.reported ? 'תגובת מניה' : 'טרם דיווח'}</div>
+        ${e.stock_price ? `<div class="earn-react-lbl">$${Number(e.stock_price).toFixed(2)}</div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  let html = '';
+  if (pre.length) {
+    html += `<div style="font-size:11px;font-weight:600;color:var(--bl);padding:8px 0 4px;text-transform:uppercase">Pre Market</div>`;
+    html += pre.map(earnCard).join('');
+  }
+  if (post.length) {
+    html += `<div style="font-size:11px;font-weight:600;color:var(--yl);padding:12px 0 4px;text-transform:uppercase">After Market / Reported</div>`;
+    html += post.map(earnCard).join('');
+  }
+  if (loading) {
+    html += `<div style="text-align:center;color:var(--mt);padding:16px;font-size:12px">⏳ בודק חברות נוספות...</div>`;
+  }
+
+  document.getElementById('earn-body').innerHTML = html;
+}
+
+// ══════════════════════════════════════════════
+//  DATA LOADING
+// ══════════════════════════════════════════════
+let _isLoading = false;
+
+async function loadMarket() {
+  try {
+    const r = await fetch('/api/market');
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    renderMarket(data);
+  } catch(e) { console.error('Market load error:', e); }
+}
+
+async function loadEarnings() {
+  try {
+    const r = await fetch('/api/earnings');
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    renderEarnings(data);
+  } catch(e) { console.error('Earnings load error:', e); }
+}
+
+async function loadTrending() {
+  try {
+    const r = await fetch('/api/trending');
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    renderTrending(data);
+  } catch(e) { console.error('Trending load error:', e); }
+}
+
+function renderTrending(data) {
+  const stocks  = data.trending || [];
+  const loading = data.loading;
+  const last    = data.last_update;
+
+  document.getElementById('trend-status').textContent =
+    loading ? '⏳ סורק...' : last ? `עודכן ${last}` : '';
+
+  if (!stocks.length && !loading) {
+    document.getElementById('trend-body').innerHTML =
+      `<div style="text-align:center;color:var(--mt);padding:32px;font-size:14px">
+        לא נמצאו מניות עם ווליום חריג היום
+      </div>`;
+    return;
+  }
+
+  const mcFmt = mc => mc >= 1e12 ? `$${(mc/1e12).toFixed(1)}T` : `$${Math.round(mc/1e9)}B`;
+  const rows = stocks.map((s,i) => {
+    const chg = s.chg ?? 0;
+    const cls = chg >= 0 ? 'pos' : 'neg';
+    const sym = chg >= 0 ? '▲' : '▼';
+    const barH = Math.max(4, Math.round(Math.min(s.ratio / 8, 1) * 32));
+    const barCol = chg >= 0 ? 'var(--gn)' : 'var(--rd)';
+    return `<tr class="${i%2?'alt':''}">
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:6px;height:${barH}px;background:${barCol};border-radius:3px;flex-shrink:0"></div>
+          <div>
+            <div style="font-weight:700;color:#fff;font-size:14px">${s.ticker}</div>
+            <div style="font-size:10px;color:var(--mt)">${mcFmt(s.mc)}</div>
+          </div>
+        </div>
+      </td>
+      <td class="num">$${Number(s.price).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td class="num"><span class="${cls}">${sym} ${Math.abs(chg).toFixed(2)}%</span></td>
+      <td class="num">
+        <span style="background:rgba(56,125,240,.15);color:var(--bl);padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700">${s.ratio}x</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('trend-body').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>מניה</th>
+        <th class="num">מחיר</th>
+        <th class="num">שינוי</th>
+        <th class="num">ווליום</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${loading ? '<div style="text-align:center;color:var(--mt);padding:12px;font-size:12px">⏳ סורק עוד מניות...</div>' : ''}
+  `;
+}
+
+function showLoading(on) {
+  document.getElementById('loadingBar').classList.toggle('hidden', !on);
+  const btn = document.getElementById('refreshBtn');
+  const ico = document.getElementById('refreshIcon');
+  if (on) { btn.disabled = true;  ico.classList.add('spin'); }
+  else    { btn.disabled = false; ico.classList.remove('spin'); }
+}
+
+function showToast(msg, ms=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+async function refresh() {
+  if (_isLoading) return;
+  _isLoading = true;
+  showLoading(true);
+  try {
+    await Promise.all([loadMarket(), loadEarnings(), loadTrending()]);
+    showToast('✅ נתונים עודכנו');
+  } finally {
+    showLoading(false);
+    _isLoading = false;
+  }
+}
+
+// Initial load
+(async () => {
+  showLoading(true);
+  await Promise.all([loadMarket(), loadEarnings(), loadTrending()]);
+  showLoading(false);
+})();
+
+// Auto-refresh intervals
+setInterval(loadMarket,   5  * 60 * 1000);   // every 5 min
+setInterval(loadEarnings, 65 * 60 * 1000);   // every 65 min
+setInterval(loadTrending, 30 * 60 * 1000);   // every 30 min
+
+// ══════════════════════════════════════════════
+//  PULL TO REFRESH
+// ══════════════════════════════════════════════
+let ptStart = 0;
+const ptr = document.getElementById('ptr');
+document.addEventListener('touchstart', e => { ptStart = e.touches[0].pageY; }, {passive:true});
+document.addEventListener('touchmove', e => {
+  const dy = e.touches[0].pageY - ptStart;
+  if (dy > 60 && document.documentElement.scrollTop === 0) {
+    ptr.classList.add('show');
+  }
+}, {passive:true});
+document.addEventListener('touchend', e => {
+  const dy = e.changedTouches[0].pageY - ptStart;
+  ptr.classList.remove('show');
+  if (dy > 80 && !_isLoading) refresh();
+});
+
+// ══════════════════════════════════════════════
+//  PWA
+// ══════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js').catch(e => console.log('SW:', e));
+}
+</script>
+</body>
+</html>
