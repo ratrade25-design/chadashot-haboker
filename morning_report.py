@@ -91,6 +91,9 @@ def get_market_data():
         "nvda":"NVDA","avgo":"AVGO","msft":"MSFT","aapl":"AAPL","meta":"META",
         "googl":"GOOGL","amzn":"AMZN","tsla":"TSLA",
         "btc":"BTC-USD","eth":"ETH-USD","sol":"SOL-USD","bnb":"BNB-USD",
+        # ── S&P sector ETFs (SPDR Select Sector) ──
+        "xlk":"XLK","xlf":"XLF","xle":"XLE","xlv":"XLV","xly":"XLY","xlp":"XLP",
+        "xli":"XLI","xlb":"XLB","xlre":"XLRE","xlu":"XLU","xlc":"XLC",
     }
     data = {}
     for k,s in syms.items():

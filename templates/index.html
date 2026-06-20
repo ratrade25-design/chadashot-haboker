@@ -55,21 +55,45 @@ header{
 .spin{animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
-/* ── TICKER ── */
+/* ── TICKER (live marquee) ── */
 .ticker{
   flex-shrink:0;height:var(--th);
-  display:flex;align-items:center;gap:6px;
-  overflow-x:auto;padding:0 12px;
+  display:flex;align-items:center;
+  overflow:hidden;position:relative;
   background:var(--s1);border-bottom:1px solid var(--bd);
-  scrollbar-width:none;-webkit-overflow-scrolling:touch;
 }
-.ticker::-webkit-scrollbar{display:none}
+.ticker-track{
+  display:flex;align-items:center;gap:8px;
+  width:max-content;direction:ltr;
+  padding:0 4px;
+  animation:marquee 38s linear infinite;
+  will-change:transform;
+}
+.ticker:hover .ticker-track,.ticker:active .ticker-track{animation-play-state:paused}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 .tick{
   flex-shrink:0;display:flex;align-items:center;gap:5px;
   padding:4px 10px;border-radius:6px;border:1px solid var(--bd);
   background:var(--s2);font-size:12px;white-space:nowrap;
 }
 .tl{color:var(--mt)}.tv{font-weight:600;color:#fff}
+
+/* ── SECTOR CAROUSEL ── */
+.sector-carousel{overflow:hidden;position:relative;margin:-2px 0}
+.sector-track{
+  display:flex;gap:10px;width:max-content;direction:ltr;
+  animation:marquee 55s linear infinite;will-change:transform;
+}
+.sector-carousel:hover .sector-track,.sector-carousel:active .sector-track{animation-play-state:paused}
+.sector-card{
+  flex:0 0 auto;width:158px;background:var(--s2);
+  border:1px solid var(--bd);border-radius:10px;padding:11px 12px;
+}
+.sec-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.sec-tk{font-size:13px;font-weight:800;color:#fff;letter-spacing:.5px}
+.sec-nm{font-size:13px;font-weight:600;color:var(--tx)}
+.sec-price{font-size:17px;font-weight:700;color:#fff;margin-top:2px;font-variant-numeric:tabular-nums}
+.sec-desc{font-size:10px;color:var(--mt);margin-top:5px;line-height:1.35;direction:rtl}
 
 /* ── DESK NAV (desktop) ── */
 .desk-nav{
@@ -285,8 +309,9 @@ tr:active td{background:var(--s2)}
 
 <!-- TICKER -->
 <div class="ticker" id="ticker">
-  <div class="tick"><span class="tl">S&P</span><span class="tv">—</span></div>
-  <div class="tick"><span class="tl">טוען...</span></div>
+  <div class="ticker-track" id="ticker-track">
+    <div class="tick"><span class="tl">טוען...</span></div>
+  </div>
 </div>
 
 <!-- DESKTOP NAV -->
@@ -328,6 +353,15 @@ tr:active td{background:var(--s2)}
         <div class="card">
           <div class="card-h"><div class="card-t">📌 מהיר</div></div>
           <div class="sg" id="quick-stats"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Sectors carousel -->
+    <div class="card" id="sectors-card">
+      <div class="card-h"><div class="card-t">🏭 סקטורים בשוק — S&amp;P 500</div><span class="card-s" id="sec-time"></span></div>
+      <div class="sector-carousel">
+        <div class="sector-track" id="sector-track">
+          <div class="skel" style="width:100%;height:96px;border-radius:10px"></div>
         </div>
       </div>
     </div>
@@ -487,6 +521,44 @@ const FMT = {
 // ══════════════════════════════════════════════
 //  RENDER FUNCTIONS
 // ══════════════════════════════════════════════
+// [key in market data, ticker, Hebrew name, description]
+const SECTORS = [
+  ['xlk', 'XLK',  'טכנולוגיה',       'שבבים, תוכנה וחומרה'],
+  ['xlc', 'XLC',  'תקשורת',          'מדיה, אינטרנט וטלקום'],
+  ['xly', 'XLY',  'צריכה מחזורית',   'קמעונאות, רכב ומותרות'],
+  ['xlf', 'XLF',  'פיננסים',         'בנקים, ביטוח ופינטק'],
+  ['xlv', 'XLV',  'בריאות',          'פארמה, ביוטק וציוד רפואי'],
+  ['xli', 'XLI',  'תעשייה',          'תעשייה, תעופה ולוגיסטיקה'],
+  ['xle', 'XLE',  'אנרגיה',          'נפט, גז וחברות אנרגיה'],
+  ['xlp', 'XLP',  'צריכה בסיסית',    'מזון, משקאות ומוצרי בית'],
+  ['xlb', 'XLB',  'חומרי גלם',       'כימיה, מתכות וכרייה'],
+  ['xlu', 'XLU',  'תשתיות',          'חשמל, מים וגז (יוטיליטיס)'],
+  ['xlre','XLRE', 'נדל"ן',           'חברות נדל"ן ו-REITs'],
+];
+
+function renderSectors(m) {
+  const card = ([k,tk,nm,desc]) => {
+    const d = m[k] || {};
+    const chg = d.chg;
+    const cls = chg == null ? 'nt' : chg >= 0 ? 'pos' : 'neg';
+    const sym = chg == null ? '' : chg >= 0 ? '▲' : '▼';
+    const ctxt = chg == null ? '—' : `${sym} ${Math.abs(chg).toFixed(2)}%`;
+    const top  = chg == null ? 'var(--mt)' : chg >= 0 ? 'var(--gn)' : 'var(--rd)';
+    return `<div class="sector-card" style="border-top:3px solid ${top}">
+      <div class="sec-top">
+        <span class="sec-tk">${tk}</span>
+        <span class="${cls}" style="font-weight:700">${ctxt}</span>
+      </div>
+      <div class="sec-nm">${nm}</div>
+      <div class="sec-price">${FMT.val(d.val,2,'$')}</div>
+      <div class="sec-desc">${desc}</div>
+    </div>`;
+  };
+  const html = SECTORS.map(card).join('');
+  // Duplicate for seamless looping marquee
+  document.getElementById('sector-track').innerHTML = html + html;
+}
+
 function renderMarket(data) {
   const m  = data.market;
   const fg = data.fear_greed;
@@ -510,9 +582,11 @@ function renderMarket(data) {
     ['DXY',    m.dxy?.val,    m.dxy?.chg,    2, ''],
     ['USD/ILS',m.usdils?.val, m.usdils?.chg, 3, ''],
   ];
-  document.getElementById('ticker').innerHTML = tickers.map(([l,v,c,d,p]) =>
+  const tickHtml = tickers.map(([l,v,c,d,p]) =>
     `<div class="tick"><span class="tl">${l}</span><span class="tv">${FMT.val(v,d,p)}</span>${FMT.chg(c)}</div>`
   ).join('');
+  // Duplicate the run so the marquee loops seamlessly (0 → -50%)
+  document.getElementById('ticker-track').innerHTML = tickHtml + tickHtml;
 
   // Indices
   document.getElementById('idx-time').textContent = ts;
@@ -573,6 +647,10 @@ function renderMarket(data) {
       <div class="sc">${FMT.chg(d?.chg)}</div>
     </div>`
   ).join('');
+
+  // Sectors carousel
+  document.getElementById('sec-time').textContent = ts;
+  renderSectors(m);
 
   // Stocks (panel 1)
   document.getElementById('stk-time').textContent = ts;
