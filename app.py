@@ -15,7 +15,8 @@ NGROK_AUTHTOKEN = os.environ.get("NGROK_AUTHTOKEN", "")
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 from morning_report import (get_market_data, get_fear_greed,
-                             get_earnings_today, get_news, get_trending_stocks)
+                             get_earnings_today, get_news, get_trending_stocks,
+                             get_economic_events)
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSON_ENSURE_ASCII'] = False
@@ -48,11 +49,14 @@ _cache = {
     'earnings'        : [],
     'news'            : [],
     'trending'        : [],
+    'economic'        : [],
     'last_market'     : None,
     'last_earnings'   : None,
     'last_trending'   : None,
+    'last_economic'   : None,
     'earnings_loading': True,
     'trending_loading': True,
+    'economic_loading': True,
 }
 _lock = threading.Lock()
 
@@ -91,6 +95,24 @@ def _refresh_trending():
                 _cache['trending_loading'] = False
         time.sleep(1800)  # 30 min
 
+def _refresh_economic():
+    """Refresh economic calendar every 3 hours."""
+    while True:
+        try:
+            with _lock:
+                _cache['economic_loading'] = True
+            data = get_economic_events()
+            with _lock:
+                _cache['economic']         = data
+                _cache['last_economic']    = datetime.datetime.now()
+                _cache['economic_loading'] = False
+            print(f"[{datetime.datetime.now():%H:%M:%S}] Economic events refreshed: {len(data)} events")
+        except Exception as e:
+            print(f"Economic refresh error: {e}")
+            with _lock:
+                _cache['economic_loading'] = False
+        time.sleep(10800)  # 3 h
+
 def _refresh_earnings():
     """Refresh earnings calendar every 60 minutes."""
     while True:
@@ -121,6 +143,7 @@ def _initial_load():
     threading.Thread(target=_refresh_market,   daemon=True, name="mkt").start()
     threading.Thread(target=_refresh_earnings, daemon=True, name="earn").start()
     threading.Thread(target=_refresh_trending, daemon=True, name="trend").start()
+    threading.Thread(target=_refresh_economic, daemon=True, name="econ").start()
 
 _initial_load()
 
@@ -171,6 +194,18 @@ def api_trending():
              and not (isinstance(s['chg'], float) and math.isnan(s['chg']))]
     return jsonify({
         'trending'   : clean,
+        'last_update': last.strftime('%H:%M') if last else None,
+        'loading'    : loading,
+    })
+
+@app.route('/api/economic')
+def api_economic():
+    with _lock:
+        data    = _cache['economic']
+        last    = _cache['last_economic']
+        loading = _cache['economic_loading']
+    return jsonify({
+        'economic'   : data,
         'last_update': last.strftime('%H:%M') if last else None,
         'loading'    : loading,
     })

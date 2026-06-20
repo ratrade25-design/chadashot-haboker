@@ -224,6 +224,20 @@ tr:active td{background:var(--s2)}
 }
 .earn-react-lbl{font-size:10px;color:var(--mt);text-align:left;margin-top:2px}
 
+/* ── ECONOMIC EVENTS ── */
+.econ-day{font-size:11px;font-weight:700;padding:11px 0 5px;color:var(--mt)}
+.econ-row{
+  display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+  padding:9px 2px;border-bottom:1px solid var(--bd);
+}
+.econ-row:last-child{border-bottom:none}
+.econ-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.econ-title{font-size:13px;font-weight:600;color:var(--tx)}
+.econ-meta{font-size:10px;color:var(--mt);margin-top:2px}
+.econ-vals{text-align:left;display:flex;flex-direction:column;gap:1px;font-size:10px;white-space:nowrap}
+.econ-a{color:#fff;font-weight:700;font-size:12.5px}
+.econ-fp{color:var(--mt)}
+
 /* ── UTILS ── */
 .pos{color:#22c55e}.neg{color:#ef4444}.nt{color:var(--mt)}
 .tag{
@@ -418,8 +432,17 @@ tr:active td{background:var(--s2)}
     </div>
   </section>
 
-  <!-- 5 — Earnings -->
+  <!-- 5 — Economic events + Earnings -->
   <section class="panel" id="p5">
+    <div class="card">
+      <div class="card-h">
+        <div class="card-t">🗓️ אירועים כלכליים — השבוע (ארה"ב)</div>
+        <span class="tag" id="econ-status">טוען...</span>
+      </div>
+      <div id="econ-body">
+        <div class="skel" style="width:100%;height:170px;border-radius:8px"></div>
+      </div>
+    </div>
     <div class="card">
       <div class="card-h">
         <div class="card-t">📋 דיווחי תוצאות</div>
@@ -894,6 +917,64 @@ async function loadTrending() {
   } catch(e) { console.error('Trending load error:', e); }
 }
 
+async function loadEconomic() {
+  try {
+    const r = await fetch('/api/economic');
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    renderEconomic(data);
+  } catch(e) { console.error('Economic load error:', e); }
+}
+
+function renderEconomic(data) {
+  const evs     = data.economic || [];
+  const loading = data.loading;
+  const last    = data.last_update;
+
+  document.getElementById('econ-status').textContent =
+    loading ? '⏳ טוען...' : last ? `עודכן ${last}` : '';
+
+  if (!evs.length && !loading) {
+    document.getElementById('econ-body').innerHTML =
+      `<div style="text-align:center;color:var(--mt);padding:24px;font-size:14px">
+        אין אירועים כלכליים משמעותיים השבוע
+      </div>`;
+    return;
+  }
+
+  const dayNames = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const todayIso = new Date().toISOString().slice(0,10);
+  const byDate = {};
+  evs.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+
+  let html = '';
+  Object.keys(byDate).sort().forEach(date => {
+    const d  = new Date(date + 'T00:00:00');
+    const lbl = isNaN(d) ? date
+      : `${dayNames[d.getDay()]} · ${d.toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'})}`;
+    const isToday = date === todayIso;
+    html += `<div class="econ-day" style="color:${isToday?'var(--bl)':'var(--mt)'}">${lbl}${isToday?' · היום':''}</div>`;
+    byDate[date].forEach(e => {
+      const high   = e.impact === 'High';
+      const impCol = high ? 'var(--rd)' : 'var(--yl)';
+      const impTxt = high ? 'השפעה גבוהה' : 'השפעה בינונית';
+      html += `<div class="econ-row">
+        <div class="econ-dot" style="background:${impCol}"></div>
+        <div>
+          <div class="econ-title">${e.title}</div>
+          <div class="econ-meta">${e.time ? e.time + ' · ' : ''}${impTxt}</div>
+        </div>
+        <div class="econ-vals">
+          ${e.actual   ? `<span class="econ-a">${e.actual}</span>` : ''}
+          ${e.forecast ? `<span class="econ-fp">תחזית ${e.forecast}</span>` : ''}
+          ${e.previous ? `<span class="econ-fp">קודם ${e.previous}</span>` : ''}
+        </div>
+      </div>`;
+    });
+  });
+  document.getElementById('econ-body').innerHTML = html;
+}
+
 function renderTrending(data) {
   const stocks  = data.trending || [];
   const loading = data.loading;
@@ -910,7 +991,8 @@ function renderTrending(data) {
     return;
   }
 
-  const mcFmt = mc => mc >= 1e12 ? `$${(mc/1e12).toFixed(1)}T` : `$${Math.round(mc/1e9)}B`;
+  const mcFmt = mc => mc == null ? '' : (mc >= 1e12 ? `$${(mc/1e12).toFixed(1)}T` : `$${Math.round(mc/1e9)}B`);
+  const volFmt = v => v == null ? '' : (v >= 1e6 ? `${(v/1e6).toFixed(1)}M מניות` : `${Math.round(v/1e3)}K מניות`);
   const rows = stocks.map((s,i) => {
     const chg = s.chg ?? 0;
     const cls = chg >= 0 ? 'pos' : 'neg';
@@ -923,7 +1005,7 @@ function renderTrending(data) {
           <div style="width:6px;height:${barH}px;background:${barCol};border-radius:3px;flex-shrink:0"></div>
           <div>
             <div style="font-weight:700;color:#fff;font-size:14px">${s.ticker}</div>
-            <div style="font-size:10px;color:var(--mt)">${mcFmt(s.mc)}</div>
+            <div style="font-size:10px;color:var(--mt)">${s.mc != null ? mcFmt(s.mc) : volFmt(s.vol)}</div>
           </div>
         </div>
       </td>
@@ -968,7 +1050,7 @@ async function refresh() {
   _isLoading = true;
   showLoading(true);
   try {
-    await Promise.all([loadMarket(), loadEarnings(), loadTrending()]);
+    await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic()]);
     showToast('✅ נתונים עודכנו');
   } finally {
     showLoading(false);
@@ -979,14 +1061,15 @@ async function refresh() {
 // Initial load
 (async () => {
   showLoading(true);
-  await Promise.all([loadMarket(), loadEarnings(), loadTrending()]);
+  await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic()]);
   showLoading(false);
 })();
 
 // Auto-refresh intervals
-setInterval(loadMarket,   5  * 60 * 1000);   // every 5 min
-setInterval(loadEarnings, 65 * 60 * 1000);   // every 65 min
-setInterval(loadTrending, 30 * 60 * 1000);   // every 30 min
+setInterval(loadMarket,   5   * 60 * 1000);   // every 5 min
+setInterval(loadEarnings, 65  * 60 * 1000);   // every 65 min
+setInterval(loadTrending, 30  * 60 * 1000);   // every 30 min
+setInterval(loadEconomic, 180 * 60 * 1000);   // every 3 h
 
 // ══════════════════════════════════════════════
 //  PULL TO REFRESH

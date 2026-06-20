@@ -95,10 +95,31 @@ def get_market_data():
         "xlk":"XLK","xlf":"XLF","xle":"XLE","xlv":"XLV","xly":"XLY","xlp":"XLP",
         "xli":"XLI","xlb":"XLB","xlre":"XLRE","xlu":"XLU","xlc":"XLC",
     }
-    data = {}
-    for k,s in syms.items():
-        v,c = pct(s)
-        data[k] = {"val":v,"chg":c}
+    # Batched download — far fewer HTTP calls, so it isn't rate-limited on cloud
+    # IPs, and a 6-day window always contains the last trading day (so values
+    # stay populated on weekends / holidays instead of going blank).
+    data = {k: {"val": None, "chg": None} for k in syms}
+    symbols = list(dict.fromkeys(syms.values()))
+    try:
+        df = yf.download(symbols, period="6d", interval="1d",
+                         group_by="ticker", auto_adjust=True,
+                         threads=True, progress=False)
+        for k, s in syms.items():
+            try:
+                closes = df[s]["Close"].dropna()
+                if len(closes) >= 2:
+                    p, c = float(closes.iloc[-2]), float(closes.iloc[-1])
+                    if p:
+                        data[k] = {"val": round(c, 2), "chg": round((c - p) / p * 100, 2)}
+                elif len(closes) == 1:
+                    data[k] = {"val": round(float(closes.iloc[-1]), 2), "chg": 0.0}
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"  market batch error: {e} — falling back to per-symbol")
+        for k, s in syms.items():
+            v, c = pct(s)
+            data[k] = {"val": v, "chg": c}
     return data
 
 # ══════════════════════════════════════════════
@@ -119,18 +140,15 @@ def get_fear_greed():
 # ══════════════════════════════════════════════
 #  3. EARNINGS CALENDAR  (today + yesterday for after-hours)
 # ══════════════════════════════════════════════
+# Focused on the most-watched reporters — kept tight so the per-ticker calendar
+# scan completes without tripping Yahoo's per-IP rate limit on cloud hosts.
 WATCHLIST = [
-    'NVDA','AVGO','AAPL','MSFT','GOOGL','AMZN','META','TSLA','AMD','INTC','QCOM','MU',
-    'NFLX','DIS','ORCL','CRM','SAP','ADBE','NOW','SNOW','PLTR','AI','NET','DDOG','ZS',
-    'CRWD','PANW','FTNT','OKTA','S','CBRE',
-    'JPM','BAC','GS','MS','WFC','C','BLK','AXP',
-    'JNJ','PFE','ABBV','MRK','LLY','TMO','ABT','MDT','ISRG',
-    'WMT','COST','TGT','HD','LOW','AMZN',
-    'XOM','CVX','COP','OXY','SLB',
-    'BA','GE','CAT','HON','RTX','LMT','NOC',
-    'LULU','NKE','SBUX','MCD','CMG',
-    'HPE','DELL','AMAT','LRCX','KLAC','ASML',
-    'VEEV','HUBS','WDAY','INTU','PAYC',
+    'NVDA','AAPL','MSFT','GOOGL','AMZN','META','TSLA','AVGO','AMD','INTC',
+    'NFLX','ORCL','CRM','ADBE','PLTR','SNOW','CRWD','PANW','MU','QCOM',
+    'JPM','BAC','GS','MS','WFC','V','MA','AXP',
+    'JNJ','PFE','ABBV','MRK','LLY','UNH',
+    'WMT','COST','HD','NKE','SBUX','MCD',
+    'XOM','CVX','BA','CAT','GE','DIS','UBER','COIN',
 ]
 
 def _check_one(sym, target_dates):
@@ -249,7 +267,7 @@ def get_earnings_today(mode="pre"):
 
     print(f"  Checking {len(WATCHLIST)} stocks for earnings on {desc}...")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
         results = list(ex.map(lambda s: _check_one(s, targets), WATCHLIST))
 
     found = sorted([r for r in results if r], key=lambda x: (x['timing'], x['ticker']))
@@ -325,19 +343,118 @@ def _get_vol_info(sym):
         return None
 
 def get_trending_stocks(n=12):
-    print(f"  Scanning {len(TRENDING_UNIVERSE)} stocks for volume spikes...")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-        results = list(ex.map(_get_vol_info, TRENDING_UNIVERSE))
-    valid = sorted(
-        [r for r in results if r
-         and r.get('price') is not None
-         and not math.isnan(r['price'])
-         and r.get('chg') is not None
-         and not math.isnan(r['chg'])],
-        key=lambda x: x['ratio'], reverse=True
-    )
-    print(f"  Found {len(valid)} with elevated volume, showing top {n}")
-    return valid[:n]
+    """Scan the universe for volume spikes using ONE batched download.
+
+    Batching keeps us under Yahoo's per-IP rate limits (so it actually works on
+    cloud hosts), and picking the last *completed* daily bar means it shows the
+    most recent trading day's data even when the market is closed.
+    """
+    print(f"  Scanning {len(TRENDING_UNIVERSE)} stocks (batched)...")
+    try:
+        df = yf.download(TRENDING_UNIVERSE, period="25d", interval="1d",
+                         group_by="ticker", auto_adjust=True,
+                         threads=True, progress=False)
+    except Exception as e:
+        print(f"  trending download error: {e}")
+        return []
+
+    today = datetime.date.today()
+    out = []
+    for sym in TRENDING_UNIVERSE:
+        try:
+            sub = df[sym][['Close', 'Volume']].dropna()
+            if len(sub) < 6:
+                continue
+            # Use the last COMPLETED session: if the last bar is today, step back one
+            last_date = sub.index[-1].date()
+            pos = len(sub) - 1 if last_date < today else len(sub) - 2
+            if pos < 2:
+                continue
+            vols, closes = sub['Volume'], sub['Close']
+            last_vol = float(vols.iloc[pos])
+            prior    = vols.iloc[max(0, pos - 10):pos]
+            avg_vol  = float(prior.mean()) if len(prior) else 0.0
+            if not avg_vol or math.isnan(avg_vol):
+                continue
+            ratio = last_vol / avg_vol
+            if ratio < 1.4:
+                continue
+            price = float(closes.iloc[pos])
+            prev  = float(closes.iloc[pos - 1])
+            if math.isnan(price) or math.isnan(prev) or not prev:
+                continue
+            out.append({
+                'ticker': sym,
+                'price':  round(price, 2),
+                'chg':    round((price - prev) / prev * 100, 2),
+                'mc':     None,
+                'vol':    int(last_vol),
+                'avg_vol': int(avg_vol),
+                'ratio':  round(ratio, 1),
+            })
+        except Exception:
+            continue
+
+    out.sort(key=lambda x: x['ratio'], reverse=True)
+    print(f"  Found {len(out)} with elevated volume, showing top {n}")
+    return out[:n]
+
+# ══════════════════════════════════════════════
+#  4b. ECONOMIC CALENDAR  (ForexFactory weekly XML via browser-impersonating TLS)
+# ══════════════════════════════════════════════
+def get_economic_events(countries=("USD",), impacts=("High", "Medium")):
+    """This week's high/medium-impact US economic events.
+
+    The feed sits behind Cloudflare and blocks plain `requests`; curl_cffi
+    impersonates a real Chrome TLS fingerprint so the server can read it.
+    """
+    url = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
+    try:
+        from curl_cffi import requests as _cffi
+        r = _cffi.get(url, impersonate="chrome", timeout=15)
+        if r.status_code != 200:
+            print(f"  econ feed HTTP {r.status_code}")
+            return []
+        try:
+            from lxml import etree as _LET
+            root = _LET.fromstring(r.content, _LET.XMLParser(recover=True))
+        except Exception:
+            root = ET.fromstring(r.content)
+    except Exception as e:
+        print(f"  econ events error: {e}")
+        return []
+
+    out = []
+    for ev in root.findall(".//event"):
+        country = (ev.findtext("country") or "").strip()
+        impact  = (ev.findtext("impact")  or "").strip()
+        if country not in countries or impact not in impacts:
+            continue
+        date_s = (ev.findtext("date") or "").strip()   # MM-DD-YYYY
+        iso = date_s
+        try:
+            iso = datetime.datetime.strptime(date_s, "%m-%d-%Y").date().isoformat()
+        except Exception:
+            pass
+        out.append({
+            "title":    (ev.findtext("title")    or "").strip(),
+            "country":  country,
+            "impact":   impact,
+            "date":     iso,
+            "time":     (ev.findtext("time")     or "").strip(),
+            "forecast": (ev.findtext("forecast") or "").strip(),
+            "previous": (ev.findtext("previous") or "").strip(),
+            "actual":   (ev.findtext("actual")   or "").strip(),
+        })
+
+    def _key(e):
+        try:
+            t = datetime.datetime.strptime(e["time"].upper().replace(" ", ""), "%I:%M%p").time()
+        except Exception:
+            t = datetime.time(0, 0)
+        return (e["date"], t)
+    out.sort(key=_key)
+    return out
 
 # ══════════════════════════════════════════════
 #  5. NEWS RSS  (only a few headlines now)
