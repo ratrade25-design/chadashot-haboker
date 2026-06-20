@@ -70,7 +70,7 @@ header{
   will-change:transform;
 }
 .ticker:hover .ticker-track,.ticker:active .ticker-track{animation-play-state:paused}
-@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(calc(-1 * var(--shift,50%)))}}
 .tick{
   flex-shrink:0;display:flex;align-items:center;gap:5px;
   padding:4px 10px;border-radius:6px;border:1px solid var(--bd);
@@ -506,21 +506,32 @@ function setupMarquee(track, baseHTML, pxPerSec) {
   const reps = Math.max(1, Math.ceil(contW / baseW) + 1);
   let half = '';
   for (let i = 0; i < reps; i++) half += baseHTML;
-  // Two identical halves → animating to -50% wraps perfectly with no empty edge
+  // Two identical halves. We shift by the EXACT pixel offset where the 2nd half
+  // begins (gaps included) — so the wrap is perfectly seamless, no leftover edge.
   track.innerHTML = half + half;
-  const halfW = track.scrollWidth / 2;
-  const dur = Math.max(8, Math.round(halfW / (pxPerSec || 60)));
+  const mid = Math.floor(track.children.length / 2);
+  const x0  = track.children[0] ? track.children[0].offsetLeft : 0;
+  const shift = (track.children[mid] ? track.children[mid].offsetLeft : track.scrollWidth / 2) - x0;
+  const dur = Math.max(8, Math.round(shift / (pxPerSec || 60)));
+  track.style.setProperty('--shift', shift + 'px');
   track.style.setProperty('--dur', dur + 's');
+}
+function rebuildMarquees() {
+  setupMarquee(document.getElementById('ticker-track'), _tickerBase, 70);
+  setupMarquee(document.getElementById('sector-track'), _sectorBase, 55);
 }
 // Rebuild on resize so a wider screen never reveals a gap
 let _rzT;
 window.addEventListener('resize', () => {
   clearTimeout(_rzT);
-  _rzT = setTimeout(() => {
-    setupMarquee(document.getElementById('ticker-track'), _tickerBase, 70);
-    setupMarquee(document.getElementById('sector-track'), _sectorBase, 55);
-  }, 250);
+  _rzT = setTimeout(rebuildMarquees, 250);
 });
+// Web fonts change text widths AFTER first paint → recompute the exact shift
+// once they're ready, plus a couple of fallbacks, so the loop never leaves a gap.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => setTimeout(rebuildMarquees, 50));
+}
+window.addEventListener('load', () => setTimeout(rebuildMarquees, 300));
 
 // ══════════════════════════════════════════════
 //  FORMATTING
