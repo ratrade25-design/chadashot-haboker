@@ -66,7 +66,7 @@ header{
   display:flex;align-items:center;gap:8px;
   width:max-content;direction:ltr;
   padding:0 4px;
-  animation:marquee 38s linear infinite;
+  animation:marquee var(--dur,38s) linear infinite;
   will-change:transform;
 }
 .ticker:hover .ticker-track,.ticker:active .ticker-track{animation-play-state:paused}
@@ -82,7 +82,7 @@ header{
 .sector-carousel{overflow:hidden;position:relative;margin:-2px 0}
 .sector-track{
   display:flex;gap:10px;width:max-content;direction:ltr;
-  animation:marquee 55s linear infinite;will-change:transform;
+  animation:marquee var(--dur,55s) linear infinite;will-change:transform;
 }
 .sector-carousel:hover .sector-track,.sector-carousel:active .sector-track{animation-play-state:paused}
 .sector-card{
@@ -492,6 +492,37 @@ panelsEl.addEventListener('scroll', () => {
 }, {passive:true});
 
 // ══════════════════════════════════════════════
+//  SEAMLESS MARQUEE  (infinite loop, never leaves a gap)
+// ══════════════════════════════════════════════
+let _tickerBase = '', _sectorBase = '';
+function setupMarquee(track, baseHTML, pxPerSec) {
+  if (!track || !baseHTML) return;
+  const container = track.parentElement;
+  const contW = (container && container.clientWidth) || window.innerWidth || 360;
+  // Measure the width of ONE base set
+  track.innerHTML = baseHTML;
+  const baseW = track.scrollWidth || contW;
+  // Repeat the set enough times that one "half" always overflows the viewport
+  const reps = Math.max(1, Math.ceil(contW / baseW) + 1);
+  let half = '';
+  for (let i = 0; i < reps; i++) half += baseHTML;
+  // Two identical halves → animating to -50% wraps perfectly with no empty edge
+  track.innerHTML = half + half;
+  const halfW = track.scrollWidth / 2;
+  const dur = Math.max(8, Math.round(halfW / (pxPerSec || 60)));
+  track.style.setProperty('--dur', dur + 's');
+}
+// Rebuild on resize so a wider screen never reveals a gap
+let _rzT;
+window.addEventListener('resize', () => {
+  clearTimeout(_rzT);
+  _rzT = setTimeout(() => {
+    setupMarquee(document.getElementById('ticker-track'), _tickerBase, 70);
+    setupMarquee(document.getElementById('sector-track'), _sectorBase, 55);
+  }, 250);
+});
+
+// ══════════════════════════════════════════════
 //  FORMATTING
 // ══════════════════════════════════════════════
 const FMT = {
@@ -555,8 +586,9 @@ function renderSectors(m) {
     </div>`;
   };
   const html = SECTORS.map(card).join('');
-  // Duplicate for seamless looping marquee
-  document.getElementById('sector-track').innerHTML = html + html;
+  // Seamless infinite loop — fills any screen width, no gap
+  _sectorBase = html;
+  setupMarquee(document.getElementById('sector-track'), html, 55);
 }
 
 function renderMarket(data) {
@@ -585,8 +617,9 @@ function renderMarket(data) {
   const tickHtml = tickers.map(([l,v,c,d,p]) =>
     `<div class="tick"><span class="tl">${l}</span><span class="tv">${FMT.val(v,d,p)}</span>${FMT.chg(c)}</div>`
   ).join('');
-  // Duplicate the run so the marquee loops seamlessly (0 → -50%)
-  document.getElementById('ticker-track').innerHTML = tickHtml + tickHtml;
+  // Seamless infinite loop — fills any screen width, no gap
+  _tickerBase = tickHtml;
+  setupMarquee(document.getElementById('ticker-track'), tickHtml, 70);
 
   // Indices
   document.getElementById('idx-time').textContent = ts;
