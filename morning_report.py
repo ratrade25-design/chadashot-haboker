@@ -438,6 +438,102 @@ def get_social_mentions(n=20):
         return []
 
 # ══════════════════════════════════════════════
+#  4a-3. TECHNICAL ANALYSIS  (per-ticker snapshot for TradingView signals)
+# ══════════════════════════════════════════════
+def analyze_ticker(sym):
+    """Technical snapshot with a Hebrew summary — used to enrich TradingView
+    signals and for on-demand analysis from the dashboard."""
+    sym = str(sym).upper().strip()
+    if not sym or len(sym) > 12:
+        return None
+    try:
+        df = yf.Ticker(sym).history(period="1y", interval="1d", auto_adjust=True)
+        if df is None or df.empty or len(df) < 30:
+            return None
+        closes = df['Close'].dropna()
+        vols   = df['Volume'].dropna()
+        price  = float(closes.iloc[-1])
+        prev   = float(closes.iloc[-2])
+        chg    = round((price - prev) / prev * 100, 2) if prev else 0.0
+
+        sma20  = float(closes.rolling(20).mean().iloc[-1])
+        sma50  = float(closes.rolling(50).mean().iloc[-1])  if len(closes) >= 50  else None
+        sma200 = float(closes.rolling(200).mean().iloc[-1]) if len(closes) >= 200 else None
+
+        # RSI-14 (Wilder smoothing)
+        delta = closes.diff()
+        avg_gain = delta.clip(lower=0).ewm(alpha=1/14, adjust=False).mean().iloc[-1]
+        avg_loss = (-delta.clip(upper=0)).ewm(alpha=1/14, adjust=False).mean().iloc[-1]
+        rsi = round(100 - 100 / (1 + avg_gain / avg_loss), 1) if avg_loss else None
+
+        vol_ratio = None
+        if len(vols) >= 21:
+            avg_vol = float(vols.iloc[-21:-1].mean())
+            if avg_vol > 0:
+                vol_ratio = round(float(vols.iloc[-1]) / avg_vol, 2)
+
+        hi52     = float(closes.max())
+        off_high = round((price / hi52 - 1) * 100, 1) if hi52 else None
+        mo_chg   = round((price / float(closes.iloc[-22]) - 1) * 100, 1) if len(closes) >= 22 else None
+
+        # ── Score + Hebrew read-out ──
+        score, points = 0, []
+        if price > sma20:
+            score += 1; points.append(f"המחיר מעל ממוצע נע 20 (${sma20:,.2f}) — מומנטום קצר חיובי")
+        else:
+            score -= 1; points.append(f"המחיר מתחת לממוצע נע 20 (${sma20:,.2f}) — חולשה בטווח הקצר")
+        if sma50 is not None:
+            if price > sma50:
+                score += 1; points.append(f"מעל ממוצע נע 50 (${sma50:,.2f}) — מגמת ביניים תומכת")
+            else:
+                score -= 1; points.append(f"מתחת לממוצע נע 50 (${sma50:,.2f}) — מגמת הביניים שלילית")
+        if sma200 is not None:
+            if price > sma200:
+                score += 1; points.append(f"מעל ממוצע נע 200 (${sma200:,.2f}) — מגמה ארוכה עולה")
+            else:
+                score -= 1; points.append(f"מתחת לממוצע נע 200 (${sma200:,.2f}) — מגמה ארוכה יורדת")
+        if rsi is not None:
+            if rsi >= 70:
+                score -= 1; points.append(f"RSI ‏{rsi} — קנוי יתר, זהירות מרדיפה")
+            elif rsi <= 30:
+                score += 1; points.append(f"RSI ‏{rsi} — מכור יתר, פוטנציאל לתיקון עולה")
+            elif rsi >= 50:
+                points.append(f"RSI ‏{rsi} — מומנטום חיובי מאוזן")
+            else:
+                points.append(f"RSI ‏{rsi} — מומנטום רפה")
+        if vol_ratio is not None and vol_ratio >= 1.5:
+            points.append(f"מחזור פי {vol_ratio} מהממוצע — עניין מוגבר במניה")
+        if off_high is not None and off_high >= -3:
+            points.append("נסחרת קרוב לשיא 52 שבועות")
+
+        if score >= 2:
+            verdict, v_emoji = "חיובי", "🟢"
+        elif score <= -2:
+            verdict, v_emoji = "שלילי", "🔴"
+        else:
+            verdict, v_emoji = "ניטרלי", "⚪"
+
+        return {
+            'ticker'   : sym,
+            'price'    : round(price, 2),
+            'chg'      : chg,
+            'sma20'    : round(sma20, 2),
+            'sma50'    : round(sma50, 2)  if sma50  is not None else None,
+            'sma200'   : round(sma200, 2) if sma200 is not None else None,
+            'rsi'      : rsi,
+            'vol_ratio': vol_ratio,
+            'off_high' : off_high,
+            'mo_chg'   : mo_chg,
+            'score'    : score,
+            'verdict'  : verdict,
+            'v_emoji'  : v_emoji,
+            'points'   : points,
+        }
+    except Exception as e:
+        print(f"  analyze_ticker({sym}) error: {e}")
+        return None
+
+# ══════════════════════════════════════════════
 #  4b. ECONOMIC CALENDAR  (ForexFactory weekly XML via browser-impersonating TLS)
 # ══════════════════════════════════════════════
 def get_economic_events(countries=("USD",), impacts=("High", "Medium")):
