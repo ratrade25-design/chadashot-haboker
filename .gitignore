@@ -1,4 +1,5 @@
 __pycache__/
+signals.json
 *.pyc
 *.pyo
 *.pyd
