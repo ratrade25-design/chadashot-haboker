@@ -337,6 +337,7 @@ tr:active td{background:var(--s2)}
   <button data-i="4">🌍 מטבעות</button>
   <button data-i="5">📋 דיווחים</button>
   <button data-i="6">🛢️ סחורות</button>
+  <button data-i="7">𝕏 אזכורים</button>
 </nav>
 
 <!-- PANELS -->
@@ -463,6 +464,22 @@ tr:active td{background:var(--s2)}
     </div>
   </section>
 
+  <!-- 7 — אזכורים ברשתות -->
+  <section class="panel" id="p7">
+    <div class="card">
+      <div class="card-h">
+        <div class="card-t">𝕏 סורק אזכורים — רשתות חברתיות</div>
+        <span class="tag" id="social-status">טוען...</span>
+      </div>
+      <div style="font-size:11px;color:var(--mt);margin-bottom:10px;direction:rtl">
+        מניות לפי כמות אזכורים ב-X (טוויטר) ורדיט · מתעדכן כל 30 דק׳
+      </div>
+      <div id="social-body">
+        <div class="skel" style="width:100%;height:300px;border-radius:8px"></div>
+      </div>
+    </div>
+  </section>
+
 </div><!-- /panels -->
 
 <!-- BOTTOM NAV -->
@@ -473,6 +490,7 @@ tr:active td{background:var(--s2)}
   <button data-i="3"><span class="ico">₿</span>קריפטו</button>
   <button data-i="4"><span class="ico">📋</span>דיווחים</button>
   <button data-i="5"><span class="ico">🛢️</span>סחורות</button>
+  <button data-i="7"><span class="ico">𝕏</span>אזכורים</button>
 </nav>
 
 <!-- Toast -->
@@ -926,6 +944,15 @@ async function loadEconomic() {
   } catch(e) { console.error('Economic load error:', e); }
 }
 
+async function loadSocial() {
+  try {
+    const r = await fetch('/api/social');
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    renderSocial(data);
+  } catch(e) { console.error('Social load error:', e); }
+}
+
 function renderEconomic(data) {
   const evs     = data.economic || [];
   const loading = data.loading;
@@ -1031,6 +1058,64 @@ function renderTrending(data) {
   `;
 }
 
+function renderSocial(data) {
+  const stocks  = data.social || [];
+  const loading = data.loading;
+  const last    = data.last_update;
+
+  document.getElementById('social-status').textContent =
+    loading ? '⏳ סורק...' : last ? `עודכן ${last}` : '';
+
+  if (!stocks.length && !loading) {
+    document.getElementById('social-body').innerHTML =
+      `<div style="text-align:center;color:var(--mt);padding:32px;font-size:14px">
+        אין נתוני אזכורים כרגע
+      </div>`;
+    return;
+  }
+
+  const rows = stocks.map((s, i) => {
+    const chgPct = s.change_pct;
+    const hasChg = chgPct !== null && chgPct !== undefined;
+    const chgCls = hasChg ? (chgPct >= 0 ? 'pos' : 'neg') : '';
+    const chgSym = hasChg ? (chgPct >= 0 ? '▲' : '▼') : '';
+    const mentionsFmt = s.mentions >= 1000 ? `${(s.mentions/1000).toFixed(1)}K` : s.mentions;
+    const barW = Math.max(8, Math.round(Math.min(s.mentions / (stocks[0]?.mentions || 1), 1) * 60));
+    const barCol = hasChg && chgPct >= 0 ? 'var(--gn)' : hasChg ? 'var(--rd)' : 'var(--bl)';
+    return `<tr class="${i%2?'alt':''}">
+      <td style="width:36px;text-align:center;font-weight:800;color:var(--mt);font-size:13px">${i+1}</td>
+      <td>
+        <div style="font-weight:700;color:#fff;font-size:14px">${s.ticker}</div>
+        <div style="font-size:10px;color:var(--mt);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.name || ''}</div>
+      </td>
+      <td class="num">
+        <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+          <div style="width:${barW}px;height:6px;background:${barCol};border-radius:3px;flex-shrink:0"></div>
+          <span style="font-weight:700;font-size:13px">${mentionsFmt}</span>
+        </div>
+      </td>
+      <td class="num">
+        ${hasChg
+          ? `<span class="${chgCls}">${chgSym} ${Math.abs(chgPct).toFixed(0)}%</span>`
+          : '<span style="color:var(--mt)">—</span>'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('social-body').innerHTML = `
+    <table>
+      <thead><tr>
+        <th style="width:36px">#</th>
+        <th>מניה</th>
+        <th class="num">אזכורים</th>
+        <th class="num">24 שעות</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${loading ? '<div style="text-align:center;color:var(--mt);padding:12px;font-size:12px">⏳ סורק אזכורים...</div>' : ''}
+  `;
+}
+
 function showLoading(on) {
   document.getElementById('loadingBar').classList.toggle('hidden', !on);
   const btn = document.getElementById('refreshBtn');
@@ -1050,7 +1135,7 @@ async function refresh() {
   _isLoading = true;
   showLoading(true);
   try {
-    await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic()]);
+    await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic(), loadSocial()]);
     showToast('✅ נתונים עודכנו');
   } finally {
     showLoading(false);
@@ -1061,7 +1146,7 @@ async function refresh() {
 // Initial load
 (async () => {
   showLoading(true);
-  await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic()]);
+  await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic(), loadSocial()]);
   showLoading(false);
 })();
 
@@ -1070,6 +1155,7 @@ setInterval(loadMarket,   5   * 60 * 1000);   // every 5 min
 setInterval(loadEarnings, 65  * 60 * 1000);   // every 65 min
 setInterval(loadTrending, 30  * 60 * 1000);   // every 30 min
 setInterval(loadEconomic, 180 * 60 * 1000);   // every 3 h
+setInterval(loadSocial,  30  * 60 * 1000);   // every 30 min
 
 // ══════════════════════════════════════════════
 //  PULL TO REFRESH

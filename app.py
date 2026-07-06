@@ -16,7 +16,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 from morning_report import (get_market_data, get_fear_greed,
                              get_earnings_today, get_news, get_trending_stocks,
-                             get_economic_events)
+                             get_economic_events, get_social_mentions)
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSON_ENSURE_ASCII'] = False
@@ -57,6 +57,9 @@ _cache = {
     'earnings_loading': True,
     'trending_loading': True,
     'economic_loading': True,
+    'social'          : [],
+    'last_social'     : None,
+    'social_loading'  : True,
 }
 _lock = threading.Lock()
 
@@ -79,6 +82,7 @@ def _refresh_market():
 
 def _refresh_trending():
     """Refresh trending/volume stocks every 30 minutes."""
+    time.sleep(20)   # stagger: let the market load settle before this heavy scan
     while True:
         try:
             with _lock:
@@ -131,6 +135,25 @@ def _refresh_earnings():
                 _cache['earnings_loading'] = False
         time.sleep(3600)  # 60 min
 
+def _refresh_social():
+    """Refresh social mentions every 30 minutes."""
+    time.sleep(15)
+    while True:
+        try:
+            with _lock:
+                _cache['social_loading'] = True
+            data = get_social_mentions(n=20)
+            with _lock:
+                _cache['social']         = data
+                _cache['last_social']    = datetime.datetime.now()
+                _cache['social_loading'] = False
+            print(f"[{datetime.datetime.now():%H:%M:%S}] Social mentions refreshed: {len(data)} stocks")
+        except Exception as e:
+            print(f"Social refresh error: {e}")
+            with _lock:
+                _cache['social_loading'] = False
+        time.sleep(1800)  # 30 min
+
 # ── Initial synchronous load ──────────────────────
 def _initial_load():
     print("⏳ Loading initial market data...")
@@ -144,6 +167,7 @@ def _initial_load():
     threading.Thread(target=_refresh_earnings, daemon=True, name="earn").start()
     threading.Thread(target=_refresh_trending, daemon=True, name="trend").start()
     threading.Thread(target=_refresh_economic, daemon=True, name="econ").start()
+    threading.Thread(target=_refresh_social,   daemon=True, name="social").start()
 
 _initial_load()
 
@@ -206,6 +230,18 @@ def api_economic():
         loading = _cache['economic_loading']
     return jsonify({
         'economic'   : data,
+        'last_update': last.strftime('%H:%M') if last else None,
+        'loading'    : loading,
+    })
+
+@app.route('/api/social')
+def api_social():
+    with _lock:
+        data    = _cache['social']
+        last    = _cache['last_social']
+        loading = _cache['social_loading']
+    return jsonify({
+        'social'     : data,
         'last_update': last.strftime('%H:%M') if last else None,
         'loading'    : loading,
     })

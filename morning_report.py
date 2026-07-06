@@ -277,22 +277,19 @@ def get_earnings_today(mode="pre"):
 # ══════════════════════════════════════════════
 #  4. TRENDING STOCKS BY VOLUME
 # ══════════════════════════════════════════════
+# Kept to ~60 liquid large/mega-caps so the single batched download stays light
+# enough to finish quickly on a small (free-tier) cloud instance.
 TRENDING_UNIVERSE = [
     'NVDA','AAPL','MSFT','AMZN','META','GOOGL','TSLA','AVGO','AMD','INTC',
-    'QCOM','MU','ARM','SMCI','MRVL','ORCL','CRM','ADBE','NOW','SNOW','PLTR',
-    'NET','DDOG','ZS','CRWD','PANW','FTNT','OKTA','AMAT','LRCX','KLAC','ASML',
-    'DELL','HPE','WDC','STX','NTAP',
-    'JPM','BAC','GS','MS','WFC','C','BLK','AXP','V','MA','PYPL','COIN','HOOD',
-    'LLY','NVO','JNJ','PFE','ABBV','MRK','TMO','ABT','ISRG','AMGN','GILD','BIIB',
-    'WMT','COST','HD','LOW','NKE','SBUX','MCD','CMG','LULU','TGT',
-    'XOM','CVX','COP','OXY','SLB','MPC','VLO',
-    'BA','GE','CAT','HON','RTX','LMT','NOC','DE','MMM','UPS','FDX',
-    'NFLX','DIS','CMCSA','SPOT','WBD',
-    'UBER','LYFT','ABNB','DASH','RBLX','SNAP','PINS','RDDT',
-    'RIVN','NIO','LCID','F','GM','STLA',
-    'BABA','JD','PDD','BIDU',
-    'GME','AMC','MSTR','RIOT','MARA','CLSK',
-    'BRK-B','CBRE','SCHW','IBKR','NDAQ',
+    'QCOM','MU','ARM','SMCI','MRVL','ORCL','CRM','ADBE','NOW','PLTR',
+    'NET','CRWD','PANW','AMAT','LRCX','KLAC','ASML','DELL',
+    'JPM','BAC','GS','MS','WFC','V','MA','PYPL','COIN','HOOD',
+    'LLY','JNJ','PFE','ABBV','MRK','UNH','TMO','ISRG','AMGN',
+    'WMT','COST','HD','NKE','SBUX','MCD',
+    'XOM','CVX','SLB',
+    'BA','GE','CAT','LMT','RTX',
+    'NFLX','DIS','UBER','ABNB','SNAP','RDDT',
+    'F','GM','MSTR','SCHW',
 ]
 
 def _get_vol_info(sym):
@@ -398,6 +395,47 @@ def get_trending_stocks(n=12):
     out.sort(key=lambda x: x['ratio'], reverse=True)
     print(f"  Found {len(out)} with elevated volume, showing top {n}")
     return out[:n]
+
+# ══════════════════════════════════════════════
+#  4a-2. SOCIAL MENTIONS SCANNER  (apewisdom.io — Reddit + X/Twitter)
+# ══════════════════════════════════════════════
+def get_social_mentions(n=20):
+    """Top stocks by social-media mention count (Reddit + X) via apewisdom.io."""
+    url = "https://apewisdom.io/api/v1.0/filter/all-stocks/page/1"
+    try:
+        r = requests.get(url, timeout=15, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        if r.status_code != 200:
+            print(f"  social mentions HTTP {r.status_code}")
+            return []
+        data = r.json().get('results', [])
+        out = []
+        for item in data[:n]:
+            ticker = item.get('ticker', '')
+            mentions = item.get('mentions', 0)
+            upvotes = item.get('upvotes', 0)
+            rank = item.get('rank', 0)
+            name = item.get('name', ticker)
+            mentions_24h_ago = item.get('mentions_24h_ago', 0)
+            if mentions_24h_ago and mentions_24h_ago > 0:
+                change_pct = round((mentions - mentions_24h_ago) / mentions_24h_ago * 100, 1)
+            else:
+                change_pct = None
+            out.append({
+                'ticker': ticker,
+                'name': name,
+                'mentions': mentions,
+                'upvotes': upvotes,
+                'rank': rank,
+                'mentions_24h_ago': mentions_24h_ago,
+                'change_pct': change_pct,
+            })
+        print(f"  Social mentions: {len(out)} stocks")
+        return out
+    except Exception as e:
+        print(f"  social mentions error: {e}")
+        return []
 
 # ══════════════════════════════════════════════
 #  4b. ECONOMIC CALENDAR  (ForexFactory weekly XML via browser-impersonating TLS)
@@ -925,7 +963,12 @@ def d_trending_row(cv, t, F, alt=False):
 
         # Market cap small label
         mc = t['mc']
-        mc_s = f"${mc/1e12:.1f}T" if mc >= 1e12 else f"${mc/1e9:.0f}B"
+        if not mc:
+            mc_s = "—"
+        elif mc >= 1e12:
+            mc_s = f"${mc/1e12:.1f}T"
+        else:
+            mc_s = f"${mc/1e9:.0f}B"
         mcw = int(tw(d, mc_s, F['xs']))
         d.text((W-PAD-mcw, cy+6), mc_s, font=F['xs'], fill=C['muted'])
 
