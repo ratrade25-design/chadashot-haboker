@@ -1,0 +1,99 @@
+//@version=6
+// ═══════════════════════════════════════════════════════════
+//  אסטרטגיית ממוצע 150 — גרף יומי
+//
+//  כניסה (קנייה):
+//    א. דשדוש על ממוצע 150 — המחיר נע בטווח צר וצמוד לממוצע,
+//       ואז פורץ את הדשדוש כלפי מעלה
+//    ב. שינוי כיוון — הממוצע היה יורד והפך לעולה, והמחיר מעליו
+//
+//  יציאה (מכירה):
+//    סגירה מתחת לממוצע 150
+//
+//  כל הסימונים מופיעים גם על ההיסטוריה, והכול ניתן לעריכה
+//  או לכיבוי מחלון ההגדרות (גלגל השיניים על האינדיקטור).
+// ═══════════════════════════════════════════════════════════
+indicator("אסטרטגיית ממוצע 150", shorttitle="MA150", overlay=true)
+
+// ─── הגדרות: ממוצע נע ───
+grpMA    = "ממוצע נע"
+maLen    = input.int(150, "אורך הממוצע", minval=2, group=grpMA)
+maTypeS  = input.string("SMA", "סוג ממוצע", options=["SMA", "EMA"], group=grpMA)
+showMA   = input.bool(true, "הצג את קו הממוצע", group=grpMA)
+maColor  = input.color(color.blue, "צבע הממוצע", group=grpMA)
+
+// ─── הגדרות: כניסה ───
+grpBuy    = "כניסה (קנייה)"
+useCons   = input.bool(true, "כניסה בפריצת דשדוש על הממוצע", group=grpBuy)
+consBars  = input.int(10, "אורך הדשדוש (נרות)", minval=3, group=grpBuy)
+consRange = input.float(6.0, "רוחב דשדוש מקסימלי (%)", minval=0.5, step=0.5, group=grpBuy)
+nearMAPct = input.float(3.0, "מרחק מקסימלי מהממוצע (%)", minval=0.1, step=0.5, group=grpBuy)
+useDir    = input.bool(true, "כניסה בשינוי כיוון הממוצע כלפי מעלה", group=grpBuy)
+slopeBars = input.int(5, "נרות למדידת שיפוע הממוצע", minval=1, group=grpBuy)
+showBuy   = input.bool(true, "הצג נקודות כניסה", group=grpBuy)
+buyColor  = input.color(color.green, "צבע כניסה", group=grpBuy)
+
+// ─── הגדרות: יציאה ───
+grpSell    = "יציאה (מכירה)"
+sellBufPct = input.float(0.0, "עומק שבירה נדרש מתחת לממוצע (%) — 0 = כל סגירה מתחת", minval=0.0, step=0.25, group=grpSell)
+showSell   = input.bool(true, "הצג נקודות יציאה", group=grpSell)
+sellColor  = input.color(color.red, "צבע יציאה", group=grpSell)
+
+// ─── הגדרות: כללי ───
+grpGen     = "כללי"
+pairMode   = input.bool(true, "מצב עסקה: כניסה ואז יציאה לסירוגין", group=grpGen)
+showConsBg = input.bool(true, "הדגש רקע בזמן דשדוש על הממוצע", group=grpGen)
+warnTF     = input.bool(true, "הצג אזהרה כשהגרף אינו יומי", group=grpGen)
+
+// ─── חישובים ───
+ma = maTypeS == "SMA" ? ta.sma(close, maLen) : ta.ema(close, maLen)
+
+// דשדוש: טווח צר לאורך X נרות, צמוד לממוצע
+consHigh = ta.highest(high, consBars)
+consLow  = ta.lowest(low, consBars)
+rangePct = (consHigh - consLow) / consLow * 100
+nearMA   = math.abs(close - ma) / ma * 100 <= nearMAPct
+isCons   = rangePct <= consRange and nearMA
+
+// כניסה א: פריצת הדשדוש כלפי מעלה, מעל הממוצע
+buyBreakout = useCons and isCons[1] and close > consHigh[1] and close > ma
+
+// כניסה ב: שינוי כיוון — השיפוע היה שלילי והפך חיובי, מחיר מעל הממוצע
+slopeUpNow   = ma > ma[slopeBars]
+slopeDownB4  = ma[1] < ma[slopeBars + 1]
+buyDirChange = useDir and slopeUpNow and slopeDownB4 and close > ma
+
+// יציאה: סגירה מתחת לממוצע (עם אפשרות לדרוש עומק שבירה)
+sellLevel = ma * (1 - sellBufPct / 100)
+sellBreak = ta.crossunder(close, sellLevel)
+
+// מצב עסקה — הסימונים מופיעים בזוגות: כניסה ואחריה יציאה
+var bool inPos = false
+rawBuy     = buyBreakout or buyDirChange
+buySignal  = rawBuy    and (not pairMode or not inPos)
+sellSignal = sellBreak and (not pairMode or inPos)
+if buySignal
+    inPos := true
+if sellSignal
+    inPos := false
+
+// ─── ציור על הגרף ───
+plot(showMA ? ma : na, "ממוצע 150", color=maColor, linewidth=2)
+bgcolor(showConsBg and isCons ? color.new(color.yellow, 88) : na)
+
+plotshape(showBuy and buySignal, title="כניסה", style=shape.labelup,
+     location=location.belowbar, color=buyColor,
+     text="BUY", textcolor=color.white, size=size.small)
+plotshape(showSell and sellSignal, title="יציאה", style=shape.labeldown,
+     location=location.abovebar, color=sellColor,
+     text="SELL", textcolor=color.white, size=size.small)
+
+// אזהרה אם הגרף אינו יומי
+var table tfWarn = table.new(position.top_right, 1, 1)
+if warnTF and not timeframe.isdaily and barstate.islast
+    table.cell(tfWarn, 0, 0, "⚠ האסטרטגיה מכוונת לגרף יומי",
+         text_color=color.white, bgcolor=color.new(color.orange, 20))
+
+// ─── התראות (אופציונלי) ───
+alertcondition(buySignal,  "כניסה — ממוצע 150", "איתות כניסה: {{ticker}} במחיר {{close}}")
+alertcondition(sellSignal, "יציאה — ממוצע 150", "{{ticker}} שבר את ממוצע 150 — מחיר {{close}}")
