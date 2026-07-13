@@ -5,7 +5,7 @@
 PWA with live market data, auto-refresh, installable on iPhone
 """
 import os, sys, threading, time, datetime, json
-from flask import Flask, jsonify, render_template, send_from_directory, request
+from flask import Flask, jsonify, render_template, send_from_directory
 
 # ── ngrok config ──────────────────────────────────────────────────────────────
 # Set your ngrok authtoken here (free at https://dashboard.ngrok.com/get-started/your-authtoken)
@@ -16,8 +16,7 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 from morning_report import (get_market_data, get_fear_greed,
                              get_earnings_today, get_news, get_trending_stocks,
-                             get_economic_events, get_social_mentions,
-                             analyze_ticker)
+                             get_economic_events, get_social_mentions)
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['JSON_ENSURE_ASCII'] = False
@@ -61,51 +60,8 @@ _cache = {
     'social'          : [],
     'last_social'     : None,
     'social_loading'  : True,
-    'signals'         : [],
 }
 _lock = threading.Lock()
-
-# ── TradingView webhook signals ───────────────────
-# Signals arrive as webhooks from TradingView alerts, get enriched with a
-# technical analysis snapshot, and persist to a JSON file (survives restarts
-# locally; on Render's free tier the disk is ephemeral, so a redeploy clears it).
-SIGNALS_FILE      = os.path.join(BASE, 'signals.json')
-TV_WEBHOOK_SECRET = os.environ.get('TV_WEBHOOK_SECRET', '')
-MAX_SIGNALS       = 100
-
-def _load_signals():
-    try:
-        with open(SIGNALS_FILE, encoding='utf-8') as f:
-            _cache['signals'] = json.load(f)[:MAX_SIGNALS]
-        print(f"Loaded {len(_cache['signals'])} saved signals")
-    except FileNotFoundError:
-        pass
-    except Exception as e:
-        print(f"Signals load error: {e}")
-
-def _save_signals_locked():
-    """Write signals to disk. Caller must hold _lock."""
-    try:
-        with open(SIGNALS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(_cache['signals'], f, ensure_ascii=False)
-    except Exception as e:
-        print(f"Signals save error: {e}")
-
-def _enrich_signal(sig_id, ticker):
-    """Attach a technical-analysis snapshot to a signal (runs in background)."""
-    analysis = analyze_ticker(ticker)
-    with _lock:
-        for s in _cache['signals']:
-            if s.get('id') == sig_id:
-                s['analysis'] = analysis
-                break
-        _save_signals_locked()
-
-_load_signals()
-
-# Small TTL cache so repeated on-demand analysis doesn't hammer Yahoo
-_analyze_cache = {}   # sym -> (result, timestamp)
-ANALYZE_TTL = 300
 
 def _refresh_market():
     """Refresh market data every 5 minutes."""
@@ -306,83 +262,6 @@ def api_social():
         'last_update': last.strftime('%H:%M') if last else None,
         'loading'    : loading,
     })
-
-@app.route('/webhook/tradingview', methods=['POST'])
-def tv_webhook():
-    """Receives TradingView alert webhooks.
-    Alert message should be JSON, e.g.:
-    {"secret":"...","ticker":"{{ticker}}","action":"buy","price":{{close}},"message":"פריצה"}
-    Plain-text alerts are accepted too (stored as message only)."""
-    raw = request.get_data(as_text=True) or ''
-    payload = None
-    try:
-        payload = json.loads(raw)
-    except Exception:
-        pass
-    if not isinstance(payload, dict):
-        payload = {}
-
-    secret = payload.get('secret') or request.args.get('secret') or ''
-    if TV_WEBHOOK_SECRET and secret != TV_WEBHOOK_SECRET:
-        return jsonify({'error': 'bad secret'}), 403
-
-    now    = datetime.datetime.now()
-    ticker = str(payload.get('ticker', '')).upper().strip()[:12]
-    # TradingView's {{ticker}} can arrive as EXCHANGE:SYMBOL
-    if ':' in ticker:
-        ticker = ticker.split(':')[-1]
-    action = str(payload.get('action', '')).lower().strip()[:10]
-    try:
-        price = float(payload.get('price')) if payload.get('price') is not None else None
-    except (TypeError, ValueError):
-        price = None
-    message = str(payload.get('message', '') or (raw[:300] if not payload else ''))[:300]
-
-    sig = {
-        'id'      : f"{now.timestamp():.6f}",
-        'time'    : now.strftime('%d.%m %H:%M'),
-        'ts'      : now.isoformat(),
-        'ticker'  : ticker,
-        'action'  : action,
-        'price'   : price,
-        'message' : message,
-        'analysis': None,
-    }
-    with _lock:
-        _cache['signals'].insert(0, sig)
-        del _cache['signals'][MAX_SIGNALS:]
-        _save_signals_locked()
-    print(f"[{now:%H:%M:%S}] TradingView signal: {ticker} {action} @ {price}")
-
-    # Enrich async so TradingView gets its 200 within its short timeout
-    if ticker:
-        threading.Thread(target=_enrich_signal, args=(sig['id'], ticker),
-                         daemon=True, name="sig-enrich").start()
-    return jsonify({'ok': True})
-
-@app.route('/api/signals')
-def api_signals():
-    with _lock:
-        data = list(_cache['signals'])
-    return jsonify({
-        'signals'   : data,
-        'secret_set': bool(TV_WEBHOOK_SECRET),
-    })
-
-@app.route('/api/analyze/<sym>')
-def api_analyze(sym):
-    sym = sym.upper().strip()
-    if not sym or len(sym) > 12 or not all(c.isalnum() or c in '.-^=' for c in sym):
-        return jsonify({'error': 'invalid ticker'}), 400
-    now = time.time()
-    cached = _analyze_cache.get(sym)
-    if cached and now - cached[1] < ANALYZE_TTL:
-        return jsonify({'analysis': cached[0], 'cached': True})
-    result = analyze_ticker(sym)
-    _analyze_cache[sym] = (result, now)
-    if result is None:
-        return jsonify({'analysis': None, 'error': 'not found'}), 404
-    return jsonify({'analysis': result, 'cached': False})
 
 @app.route('/api/status')
 def api_status():

@@ -350,7 +350,6 @@ tr:active td{background:var(--s2)}
   <button data-i="5">📋 דיווחים</button>
   <button data-i="6">🛢️ סחורות</button>
   <button data-i="7">𝕏 אזכורים</button>
-  <button data-i="8">📡 איתותים</button>
 </nav>
 
 <!-- PANELS -->
@@ -500,37 +499,6 @@ tr:active td{background:var(--s2)}
     </div>
   </section>
 
-  <!-- 8 — איתותים וניתוח -->
-  <section class="panel" id="p8">
-    <div class="card">
-      <div class="card-h">
-        <div class="card-t">🔎 ניתוח טכני מהיר</div>
-      </div>
-      <div style="font-size:11px;color:var(--mt);margin-bottom:10px;direction:rtl">
-        הקלד סימבול (למשל NVDA) וקבל ניתוח: מגמה, ממוצעים נעים, RSI ומחזור
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button id="an-btn" style="background:var(--bl);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">נתח</button>
-        <input id="an-input" placeholder="AAPL" autocapitalize="characters" autocomplete="off"
-               style="flex:1;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:15px;font-weight:700;direction:ltr;text-align:left;font-family:inherit;min-width:0">
-      </div>
-      <div id="an-body"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-h">
-        <div class="card-t">📡 איתותים מ-TradingView</div>
-        <span class="tag" id="sig-status">—</span>
-      </div>
-      <div style="font-size:11px;color:var(--mt);margin-bottom:10px;direction:rtl">
-        התראות Webhook מ-TradingView נכנסות לכאן וכל איתות מקבל ניתוח טכני אוטומטי
-      </div>
-      <div id="sig-body">
-        <div class="skel" style="width:100%;height:120px;border-radius:8px"></div>
-      </div>
-    </div>
-  </section>
-
 </div><!-- /panels -->
 
 <!-- BOTTOM NAV -->
@@ -542,7 +510,6 @@ tr:active td{background:var(--s2)}
   <button data-i="5"><span class="ico">📋</span>דיווחים</button>
   <button data-i="6"><span class="ico">🛢️</span>סחורות</button>
   <button data-i="7"><span class="ico">𝕏</span>אזכורים</button>
-  <button data-i="8"><span class="ico">📡</span>איתותים</button>
 </nav>
 
 <!-- Toast -->
@@ -1188,116 +1155,6 @@ function renderSocial(data) {
   `;
 }
 
-// ══════════════════════════════════════════════
-//  TRADINGVIEW SIGNALS + ON-DEMAND ANALYSIS
-// ══════════════════════════════════════════════
-async function loadSignals() {
-  try {
-    const r = await fetch('/api/signals');
-    if (!r.ok) throw new Error(r.status);
-    renderSignals(await r.json());
-  } catch(e) { console.error('Signals load error:', e); }
-}
-
-function analysisCard(a) {
-  if (!a) return '';
-  const chgCls = a.chg >= 0 ? 'pos' : 'neg';
-  const vCol = a.verdict === 'חיובי' ? 'var(--gn)' : a.verdict === 'שלילי' ? 'var(--rd)' : 'var(--mt)';
-  const metric = (label, val) => val === null || val === undefined ? '' :
-    `<div style="background:var(--s2);border-radius:8px;padding:8px 10px;text-align:center">
-       <div style="font-size:10px;color:var(--mt);margin-bottom:2px">${label}</div>
-       <div style="font-size:13px;font-weight:700">${val}</div>
-     </div>`;
-  return `
-    <div style="direction:rtl">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-        <span style="font-size:18px;font-weight:800;direction:ltr">${a.ticker}</span>
-        <span style="font-size:16px;font-weight:700;direction:ltr">$${a.price?.toLocaleString()}</span>
-        <span class="${chgCls}" style="font-weight:700;direction:ltr">${a.chg >= 0 ? '▲' : '▼'} ${Math.abs(a.chg).toFixed(2)}%</span>
-        <span style="margin-inline-start:auto;font-weight:800;color:${vCol};font-size:14px">${a.v_emoji} ${a.verdict}</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:10px">
-        ${metric('RSI', a.rsi)}
-        ${metric('ממוצע 20', a.sma20 !== null ? '$' + a.sma20.toLocaleString() : null)}
-        ${metric('ממוצע 50', a.sma50 !== null ? '$' + a.sma50.toLocaleString() : null)}
-        ${metric('ממוצע 200', a.sma200 !== null ? '$' + a.sma200.toLocaleString() : null)}
-        ${metric('מחזור/ממוצע', a.vol_ratio !== null ? '×' + a.vol_ratio : null)}
-        ${metric('מהשיא השנתי', a.off_high !== null ? a.off_high + '%' : null)}
-        ${metric('חודש אחרון', a.mo_chg !== null ? (a.mo_chg >= 0 ? '+' : '') + a.mo_chg + '%' : null)}
-      </div>
-      <ul style="margin:0;padding-inline-start:18px;font-size:12.5px;line-height:1.7;color:var(--tx)">
-        ${(a.points || []).map(p => `<li>${p}</li>`).join('')}
-      </ul>
-    </div>`;
-}
-
-function renderSignals(data) {
-  const sigs = data.signals || [];
-  document.getElementById('sig-status').textContent =
-    sigs.length ? `${sigs.length} איתותים` : 'ממתין';
-
-  if (!sigs.length) {
-    const wh = `${location.origin}/webhook/tradingview`;
-    document.getElementById('sig-body').innerHTML = `
-      <div style="direction:rtl;font-size:12.5px;line-height:1.8;color:var(--tx)">
-        <div style="font-weight:700;margin-bottom:6px">עדיין אין איתותים — כך מחברים את TradingView:</div>
-        <ol style="margin:0 0 10px;padding-inline-start:18px;color:var(--mt)">
-          <li>ב-TradingView צור התראה (Alert) על מניה או אסטרטגיה</li>
-          <li>תחת Notifications סמן <b>Webhook URL</b> והדבק:</li>
-        </ol>
-        <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;direction:ltr;font-family:monospace;font-size:11px;word-break:break-all;margin-bottom:10px">${wh}</div>
-        <div style="color:var(--mt);margin-bottom:6px">3. בשדה Message הדבק (אפשר לערוך את הטקסט):</div>
-        <div style="background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;direction:ltr;font-family:monospace;font-size:11px;word-break:break-all">{"ticker":"{{ticker}}","action":"buy","price":{{close}},"message":"האיתות שלי"}</div>
-        <div style="color:var(--mt);font-size:11px;margin-top:8px">* דורש תוכנית TradingView בתשלום (Essential ומעלה) לתמיכה ב-Webhooks</div>
-      </div>`;
-    return;
-  }
-
-  document.getElementById('sig-body').innerHTML = sigs.map(s => {
-    const isBuy  = ['buy','long','קנייה'].includes(s.action);
-    const isSell = ['sell','short','מכירה'].includes(s.action);
-    const actCol = isBuy ? 'var(--gn)' : isSell ? 'var(--rd)' : 'var(--bl)';
-    const actTxt = isBuy ? 'קנייה' : isSell ? 'מכירה' : (s.action || 'איתות');
-    return `
-    <div style="border:1px solid var(--bd);border-radius:10px;padding:12px;margin-bottom:10px;direction:rtl">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:${s.message || s.analysis ? '8px' : '0'}">
-        <span style="background:${actCol};color:#fff;border-radius:6px;padding:2px 10px;font-size:12px;font-weight:800">${actTxt}</span>
-        <span style="font-weight:800;font-size:15px;direction:ltr">${s.ticker || ''}</span>
-        ${s.price ? `<span style="font-weight:700;direction:ltr">$${(+s.price).toLocaleString()}</span>` : ''}
-        <span style="margin-inline-start:auto;color:var(--mt);font-size:11px">${s.time}</span>
-      </div>
-      ${s.message ? `<div style="font-size:12.5px;color:var(--tx);margin-bottom:${s.analysis ? '8px' : '0'}">${s.message}</div>` : ''}
-      ${s.analysis ? `<details style="font-size:12px">
-          <summary style="cursor:pointer;color:${s.analysis.verdict === 'חיובי' ? 'var(--gn)' : s.analysis.verdict === 'שלילי' ? 'var(--rd)' : 'var(--mt)'};font-weight:700">
-            ${s.analysis.v_emoji} ניתוח טכני: ${s.analysis.verdict} · RSI ${s.analysis.rsi ?? '—'}
-          </summary>
-          <div style="margin-top:8px">${analysisCard(s.analysis)}</div>
-        </details>` : ''}
-    </div>`;
-  }).join('');
-}
-
-async function runAnalyze() {
-  const inp = document.getElementById('an-input');
-  const sym = (inp.value || '').trim().toUpperCase();
-  if (!sym) return;
-  const body = document.getElementById('an-body');
-  body.innerHTML = '<div class="skel" style="width:100%;height:140px;border-radius:8px"></div>';
-  try {
-    const r = await fetch('/api/analyze/' + encodeURIComponent(sym));
-    const data = await r.json();
-    if (!r.ok || !data.analysis) {
-      body.innerHTML = `<div style="text-align:center;color:var(--mt);padding:20px;font-size:13px;direction:rtl">לא נמצאו נתונים עבור ${sym}</div>`;
-      return;
-    }
-    body.innerHTML = analysisCard(data.analysis);
-  } catch(e) {
-    body.innerHTML = '<div style="text-align:center;color:var(--rd);padding:20px;font-size:13px;direction:rtl">שגיאה בטעינת הניתוח</div>';
-  }
-}
-document.getElementById('an-btn').addEventListener('click', runAnalyze);
-document.getElementById('an-input').addEventListener('keydown', e => { if (e.key === 'Enter') runAnalyze(); });
-
 function showLoading(on) {
   document.getElementById('loadingBar').classList.toggle('hidden', !on);
   const btn = document.getElementById('refreshBtn');
@@ -1317,7 +1174,7 @@ async function refresh() {
   _isLoading = true;
   showLoading(true);
   try {
-    await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic(), loadSocial(), loadSignals()]);
+    await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic(), loadSocial()]);
     showToast('✅ נתונים עודכנו');
   } finally {
     showLoading(false);
@@ -1328,7 +1185,7 @@ async function refresh() {
 // Initial load
 (async () => {
   showLoading(true);
-  await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic(), loadSocial(), loadSignals()]);
+  await Promise.all([loadMarket(), loadEarnings(), loadTrending(), loadEconomic(), loadSocial()]);
   showLoading(false);
 })();
 
@@ -1338,7 +1195,6 @@ setInterval(loadEarnings, 65  * 60 * 1000);   // every 65 min
 setInterval(loadTrending, 30  * 60 * 1000);   // every 30 min
 setInterval(loadEconomic, 180 * 60 * 1000);   // every 3 h
 setInterval(loadSocial,  30  * 60 * 1000);   // every 30 min
-setInterval(loadSignals,  60 * 1000);         // every 1 min
 
 // ══════════════════════════════════════════════
 //  PULL TO REFRESH
